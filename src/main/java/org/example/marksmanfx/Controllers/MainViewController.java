@@ -9,12 +9,17 @@ import javafx.scene.control.Button;
 import javafx.scene.control.Label;
 import javafx.scene.input.KeyCode;
 import javafx.scene.input.KeyEvent;
+import javafx.scene.input.MouseEvent;
 import javafx.scene.layout.BorderPane;
+import javafx.scene.layout.HBox;
 import javafx.scene.layout.StackPane;
 import javafx.scene.paint.Color;
 import javafx.scene.paint.LinearGradient;
 import javafx.scene.paint.Stop;
 import javafx.scene.shape.ArcType;
+import javafx.scene.text.Font;
+import javafx.scene.text.FontWeight;
+import javafx.stage.Stage;
 import org.example.marksmanfx.Engine.GameEngine;
 import org.example.marksmanfx.Models.ArrowSnapshot;
 import org.example.marksmanfx.Models.GameModel;
@@ -30,6 +35,7 @@ public class MainViewController {
     private static final double WORLD_WIDTH = 960;
     private static final double WORLD_HEIGHT = 560;
     private static final double FIELD_PADDING = 10;
+    private static final double CHARGE_PER_SECOND = 0.70;
 
     private final GameModel gameModel = new GameModel();
     private final GameEngine gameEngine = new GameEngine(gameModel, this::render);
@@ -37,6 +43,9 @@ public class MainViewController {
     private volatile boolean inputLoopActive;
     private Thread inputLoopThread;
     private boolean keyboardBound;
+    private Stage stage;
+    private double dragOffsetX;
+    private double dragOffsetY;
 
     private volatile boolean moveUpHeld;
     private volatile boolean moveDownHeld;
@@ -44,10 +53,16 @@ public class MainViewController {
     private volatile boolean moveRightHeld;
     private volatile boolean aimUpHeld;
     private volatile boolean aimDownHeld;
+    private volatile boolean shootHeld;
+    private volatile double shotCharge;
+
     private final Set<KeyCode> pressedKeys = EnumSet.noneOf(KeyCode.class);
 
     @FXML
     private BorderPane rootPane;
+
+    @FXML
+    private HBox topBar;
 
     @FXML
     private StackPane gameFieldContainer;
@@ -97,6 +112,10 @@ public class MainViewController {
     @FXML
     private Button aimDownButton;
 
+    public void attachStage(Stage stage) {
+        this.stage = stage;
+    }
+
     @FXML
     private void initialize() {
         configureCanvasHost();
@@ -126,7 +145,7 @@ public class MainViewController {
 
     @FXML
     private void onShoot() {
-        gameEngine.fireArrow();
+        releaseChargingShot();
         requestGameFocus();
     }
 
@@ -177,6 +196,33 @@ public class MainViewController {
         gameEngine.shutdown();
     }
 
+    @FXML
+    private void onTopBarPressed(MouseEvent event) {
+        if (stage == null) {
+            return;
+        }
+        dragOffsetX = event.getSceneX();
+        dragOffsetY = event.getSceneY();
+    }
+
+    @FXML
+    private void onTopBarDragged(MouseEvent event) {
+        if (stage == null) {
+            return;
+        }
+        stage.setX(event.getScreenX() - dragOffsetX);
+        stage.setY(event.getScreenY() - dragOffsetY);
+    }
+
+    @FXML
+    private void onCloseWindow() {
+        if (stage != null) {
+            stage.close();
+        } else {
+            Platform.exit();
+        }
+    }
+
     private void bindKeyboard() {
         rootPane.setFocusTraversable(true);
         Platform.runLater(() -> {
@@ -213,7 +259,7 @@ public class MainViewController {
             case ENTER, R -> onStartGame();
             case T -> onStopGame();
             case P -> onPauseResume();
-            case SPACE -> onShoot();
+            case SPACE -> startChargingShot();
             case C -> onToggleCrouch();
             default -> {
                 return;
@@ -234,6 +280,7 @@ public class MainViewController {
             case D -> moveRightHeld = false;
             case RIGHT, E -> aimDownHeld = false;
             case LEFT, Q -> aimUpHeld = false;
+            case SPACE -> releaseChargingShot();
             default -> {
                 return;
             }
@@ -260,6 +307,7 @@ public class MainViewController {
         bindHold(moveRightButton, () -> moveRightHeld = true, () -> moveRightHeld = false);
         bindHold(aimUpButton, () -> aimUpHeld = true, () -> aimUpHeld = false);
         bindHold(aimDownButton, () -> aimDownHeld = true, () -> aimDownHeld = false);
+        bindHold(shootButton, this::startChargingShot, this::releaseChargingShot);
     }
 
     private void bindHold(Button button, Runnable onPress, Runnable onRelease) {
@@ -278,6 +326,7 @@ public class MainViewController {
                 double deltaX = (moveRightHeld ? 1 : 0) - (moveLeftHeld ? 1 : 0);
                 double deltaY = (moveDownHeld ? 1 : 0) - (moveUpHeld ? 1 : 0);
                 double deltaAim = (aimUpHeld ? 1 : 0) - (aimDownHeld ? 1 : 0);
+                boolean chargeChanged = false;
 
                 if (deltaX != 0 || deltaY != 0) {
                     gameEngine.moveArcher(deltaX * 3.8, deltaY * 3.8);
@@ -286,12 +335,45 @@ public class MainViewController {
                     gameEngine.aim(deltaAim * 1.35);
                 }
 
+                if (shootHeld) {
+                    GameSnapshot snapshot = gameModel.snapshot();
+                    if (snapshot.running() && !snapshot.paused() && !snapshot.arrow().active()) {
+                        double nextCharge = Math.min(1.0, shotCharge + CHARGE_PER_SECOND * 0.016);
+                        if (Math.abs(nextCharge - shotCharge) > 0.0001) {
+                            shotCharge = nextCharge;
+                            chargeChanged = true;
+                        }
+                    }
+                }
+
+                if (chargeChanged) {
+                    Platform.runLater(() -> updateShootButtonText(gameModel.snapshot()));
+                }
+
                 sleep(16);
             }
         }, "marksman-input");
 
         inputLoopThread.setDaemon(true);
         inputLoopThread.start();
+    }
+
+    private void startChargingShot() {
+        shootHeld = true;
+    }
+
+    private void releaseChargingShot() {
+        boolean wasHeld = shootHeld;
+        shootHeld = false;
+
+        if (!wasHeld) {
+            return;
+        }
+
+        double charge = shotCharge;
+        shotCharge = 0;
+        gameEngine.fireArrow(charge);
+        Platform.runLater(() -> updateShootButtonText(gameModel.snapshot()));
     }
 
     private void requestGameFocus() {
@@ -314,6 +396,10 @@ public class MainViewController {
         drawTarget(gc, snapshot.farTarget());
         drawArrow(gc, snapshot.arrow());
 
+        if (snapshot.running() && snapshot.paused()) {
+            drawPauseOverlay(gc);
+        }
+
         gc.restore();
 
         scoreLabel.setText(String.valueOf(snapshot.score()));
@@ -330,6 +416,19 @@ public class MainViewController {
         pauseButton.setText(snapshot.paused() ? "Продолжить [P]" : "Пауза [P]");
         pauseButton.setDisable(!snapshot.running());
         shootButton.setDisable(!snapshot.running() || snapshot.paused() || snapshot.arrow().active());
+        updateShootButtonText(snapshot);
+    }
+
+    private void updateShootButtonText(GameSnapshot snapshot) {
+        int bars = (int) Math.round(shotCharge * 10);
+        String bar = "█".repeat(Math.max(0, bars)) + "░".repeat(Math.max(0, 10 - bars));
+
+        if (snapshot.running() && !snapshot.paused() && !snapshot.arrow().active() && shotCharge > 0.001) {
+            int percent = (int) Math.round(shotCharge * 100);
+            shootButton.setText("Выстрел [Space] " + bar + " " + percent + "%");
+        } else {
+            shootButton.setText("Выстрел [Space]");
+        }
     }
 
     private static void applyRoundedClip(GraphicsContext gc, double x, double y, double width, double height, double radius) {
@@ -370,6 +469,18 @@ public class MainViewController {
 
         gc.setFill(Color.rgb(8, 24, 30, 0.35));
         gc.fillRect(0, height * 0.76, width, height * 0.24);
+    }
+
+    private static void drawPauseOverlay(GraphicsContext gc) {
+        gc.setFill(Color.rgb(4, 10, 22, 0.52));
+        gc.fillRect(0, 0, WORLD_WIDTH, WORLD_HEIGHT);
+
+        gc.setFill(Color.web("#e2e8f0"));
+        gc.fillRoundRect(WORLD_WIDTH * 0.5 - 170, WORLD_HEIGHT * 0.5 - 48, 340, 96, 20, 20);
+
+        gc.setFill(Color.web("#0f172a"));
+        gc.setFont(Font.font("System", FontWeight.BOLD, 34));
+        gc.fillText("ПАУЗА", WORLD_WIDTH * 0.5 - 72, WORLD_HEIGHT * 0.5 + 12);
     }
 
     private static void drawGuides(GraphicsContext gc, double height, double nearX, double farX) {

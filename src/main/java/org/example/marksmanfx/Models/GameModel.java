@@ -12,6 +12,8 @@ public class GameModel {
     private static final double AIM_MIN_ANGLE = -45;
     private static final double AIM_MAX_ANGLE = 45;
     private static final int MAX_LEVEL = 5;
+    private static final double MIN_SHOT_SPEED_MULTIPLIER = 1.0;
+    private static final double MAX_SHOT_SPEED_MULTIPLIER = 2.4;
 
     private final Object lock = new Object();
 
@@ -59,20 +61,27 @@ public class GameModel {
         }
     }
 
-    public boolean fireArrow() {
+    public boolean fireArrow(double chargeRatio) {
         synchronized (lock) {
             if (!running || paused || arrow.isActive()) {
                 return false;
             }
 
             shots++;
-            arrow.activate(arrowStartX(), arrowStartY(), aimAngleDegrees);
+            double clampedCharge = clamp(chargeRatio, 0.0, 1.0);
+            double speedMultiplier = MIN_SHOT_SPEED_MULTIPLIER
+                    + (MAX_SHOT_SPEED_MULTIPLIER - MIN_SHOT_SPEED_MULTIPLIER) * clampedCharge;
+
+            arrow.activate(arrowStartX(), arrowStartY(), aimAngleDegrees, speedMultiplier);
             return true;
         }
     }
 
     public void moveArcher(double deltaX, double deltaY) {
         synchronized (lock) {
+            if (paused) {
+                return;
+            }
             archerX = clamp(archerX + deltaX, ARCHER_MIN_X, ARCHER_MAX_X);
             archerY = clamp(archerY + deltaY, ARCHER_MIN_Y, ARCHER_MAX_Y);
         }
@@ -110,6 +119,9 @@ public class GameModel {
 
     public void toggleCrouch() {
         synchronized (lock) {
+            if (paused) {
+                return;
+            }
             crouched = !crouched;
         }
     }

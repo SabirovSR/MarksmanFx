@@ -9,6 +9,7 @@ final class TargetModel {
     private final double bottomY;
 
     private double y;
+    private int direction = 1;
 
     TargetModel(TargetType type, double x, double size, double speed, double topY, double bottomY) {
         this.type = type;
@@ -21,12 +22,17 @@ final class TargetModel {
 
     void resetToCenter() {
         this.y = (topY + bottomY - size) * 0.5;
+        this.direction = 1;
     }
 
     void advance(double deltaSeconds, double speedMultiplier) {
-        y += speed * speedMultiplier * deltaSeconds;
+        y += direction * speed * speedMultiplier * deltaSeconds;
         if (y > bottomY - size) {
+            y = bottomY - size;
+            direction = -1;
+        } else if (y < topY) {
             y = topY;
+            direction = 1;
         }
     }
 

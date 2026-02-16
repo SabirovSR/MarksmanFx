@@ -5,8 +5,15 @@
   </component>
   <component name="ChangeListManager">
     <list default="true" id="0f83e7fb-85ab-4f25-bfa3-c7d28ae62571" name="Changes" comment="">
-      <change beforePath="$PROJECT_DIR$/.gitignore" beforeDir="false" afterPath="$PROJECT_DIR$/.gitignore" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/main/java/org/example/marksmanfx/App.java" beforeDir="false" afterPath="$PROJECT_DIR$/src/main/java/org/example/marksmanfx/App.java" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/main/java/org/example/marksmanfx/Controllers/MainViewController.java" beforeDir="false" afterPath="$PROJECT_DIR$/src/main/java/org/example/marksmanfx/Controllers/MainViewController.java" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/main/java/org/example/marksmanfx/Engine/GameEngine.java" beforeDir="false" afterPath="$PROJECT_DIR$/src/main/java/org/example/marksmanfx/Engine/GameEngine.java" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/main/java/org/example/marksmanfx/Models/ArrowModel.java" beforeDir="false" afterPath="$PROJECT_DIR$/src/main/java/org/example/marksmanfx/Models/ArrowModel.java" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/main/java/org/example/marksmanfx/Models/GameModel.java" beforeDir="false" afterPath="$PROJECT_DIR$/src/main/java/org/example/marksmanfx/Models/GameModel.java" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/main/java/org/example/marksmanfx/Models/TargetModel.java" beforeDir="false" afterPath="$PROJECT_DIR$/src/main/java/org/example/marksmanfx/Models/TargetModel.java" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/main/resources/org/example/marksmanfx/MainView.fxml" beforeDir="false" afterPath="$PROJECT_DIR$/src/main/resources/org/example/marksmanfx/MainView.fxml" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/main/resources/org/example/marksmanfx/game.css" beforeDir="false" afterPath="$PROJECT_DIR$/src/main/resources/org/example/marksmanfx/game.css" afterDir="false" />
     </list>
     <option name="SHOW_DIALOG" value="false" />
     <option name="HIGHLIGHT_CONFLICTS" value="true" />
@@ -14,7 +21,7 @@
     <option name="LAST_RESOLUTION" value="IGNORE" />
   </component>
   <component name="EmbeddingIndexingInfo">
-    <option name="cachedIndexableFilesCount" value="29" />
+    <option name="cachedIndexableFilesCount" value="32" />
   </component>
   <component name="FileTemplateManagerImpl">
     <option name="RECENT_TEMPLATES">
@@ -36,10 +43,14 @@
 }</component>
   <component name="GithubPullRequestsUISettings">{
   &quot;selectedUrlAndAccountId&quot;: {
-    &quot;url&quot;: &quot;https://github.com/SabirovSR/marksmanfx.git&quot;,
+    &quot;url&quot;: &quot;https://github.com/SabirovSr/MarksmanFx.git&quot;,
     &quot;accountId&quot;: &quot;7a73e4a8-2dc4-4363-b6d3-e0bf362f6a9b&quot;
   }
 }</component>
+  <component name="KubernetesApiPersistence"><![CDATA[{}]]></component>
+  <component name="KubernetesApiProvider"><![CDATA[{
+  "isMigrated": true
+}]]></component>
   <component name="MavenImportPreferences">
     <option name="generalSettings">
       <MavenGeneralSettings>
@@ -67,6 +78,7 @@
   </component>
   <component name="PropertiesComponent"><![CDATA[{
   "keyToString": {
+    "ASKED_MARK_IGNORED_FILES_AS_EXCLUDED": "true",
     "Application.App.executor": "Run",
     "Application.HelloApplication.executor": "Run",
     "Application.org.example.marksmanfx.App.executor": "Run",
@@ -105,7 +117,7 @@
       <recent name="org.example.marksmanfx" />
     </key>
   </component>
-  <component name="RunManager" selected="Application.org.example.marksmanfx.App">
+  <component name="RunManager" selected="Application.App">
     <configuration name="App" type="Application" factoryName="Application" temporary="true" nameIsGenerated="true">
       <option name="MAIN_CLASS_NAME" value="org.example.marksmanfx.App" />
       <module name="MarksmanFx" />
@@ -134,7 +146,6 @@
     </configuration>
     <recent_temporary>
       <list>
-        <item itemvalue="Application.org.example.marksmanfx.App" />
         <item itemvalue="Application.App" />
       </list>
     </recent_temporary>
@@ -164,6 +175,8 @@
       <workItem from="1771193667980" duration="2331000" />
       <workItem from="1771196261993" duration="237000" />
       <workItem from="1771196569608" duration="1974000" />
+      <workItem from="1771228352635" duration="1000" />
+      <workItem from="1771231017810" duration="3344000" />
     </task>
     <task id="LOCAL-00001" summary="Создание проекта Fx">
       <option name="closed" value="true" />
@@ -194,6 +207,7 @@
     <ignored-roots>
       <path value="$PROJECT_DIR$/.." />
     </ignored-roots>
+    <option name="CLEAR_INITIAL_COMMIT_MESSAGE" value="true" />
     <MESSAGE value="Создание проекта Fx" />
     <option name="LAST_COMMIT_MESSAGE" value="Создание проекта Fx" />
   </component>

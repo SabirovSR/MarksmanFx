@@ -39,14 +39,18 @@ public class GameEngine {
         publishFrame();
     }
 
-    public boolean fireArrow() {
-        if (!model.fireArrow()) {
+    public boolean fireArrow(double chargeRatio) {
+        if (!model.fireArrow(chargeRatio)) {
             return false;
         }
 
         launchArrowThread();
         publishFrame();
         return true;
+    }
+
+    public boolean fireArrow() {
+        return fireArrow(0);
     }
 
     public void moveArcher(double deltaX, double deltaY) {

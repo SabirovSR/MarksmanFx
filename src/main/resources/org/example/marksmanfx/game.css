@@ -9,6 +9,21 @@
     -fx-padding: 12 14;
 }
 
+.window-title {
+    -fx-text-fill: #e2e8f0;
+    -fx-font-size: 19px;
+    -fx-font-weight: 800;
+}
+
+.close-button {
+    -fx-background-color: #b91c1c;
+    -fx-text-fill: #fef2f2;
+}
+
+.close-button:hover {
+    -fx-background-color: #dc2626;
+}
+
 .button {
     -fx-background-color: #24324d;
     -fx-text-fill: #f8fafc;
@@ -68,17 +83,18 @@
     -fx-background-color: rgba(255, 255, 255, 0.05);
     -fx-background-radius: 10;
     -fx-padding: 8;
+    -fx-alignment: center-left;
 }
 
 .stats-label {
     -fx-text-fill: #cbd5e1;
-    -fx-font-size: 14px;
+    -fx-font-size: 15px;
     -fx-font-weight: 700;
 }
 
 .stats-value {
     -fx-text-fill: #f8fafc;
-    -fx-font-size: 16px;
+    -fx-font-size: 15px;
     -fx-font-weight: 800;
 }
 

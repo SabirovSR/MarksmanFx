@@ -6,18 +6,22 @@
 <?import javafx.scene.control.Label?>
 <?import javafx.scene.layout.BorderPane?>
 <?import javafx.scene.layout.HBox?>
+<?import javafx.scene.layout.Priority?>
 <?import javafx.scene.layout.Region?>
 <?import javafx.scene.layout.StackPane?>
 <?import javafx.scene.layout.VBox?>
 
 <BorderPane fx:id="rootPane" prefHeight="780.0" prefWidth="1200.0" styleClass="root" xmlns="http://javafx.com/javafx/22.0.1" xmlns:fx="http://javafx.com/fxml/1" fx:controller="org.example.marksmanfx.Controllers.MainViewController">
     <top>
-        <HBox alignment="CENTER_LEFT" spacing="12.0" styleClass="toolbar">
+        <HBox fx:id="topBar" alignment="CENTER_LEFT" spacing="12.0" styleClass="toolbar" onMousePressed="#onTopBarPressed" onMouseDragged="#onTopBarDragged">
             <children>
                 <Button mnemonicParsing="false" onAction="#onStartGame" styleClass="accent-button" text="Старт [Enter]" />
                 <Button mnemonicParsing="false" onAction="#onStopGame" text="Рестарт [T]" />
                 <Button fx:id="pauseButton" mnemonicParsing="false" onAction="#onPauseResume" text="Пауза [P]" />
                 <Button fx:id="shootButton" mnemonicParsing="false" onAction="#onShoot" styleClass="shoot-button" text="Выстрел [Space]" />
+                <Region HBox.hgrow="ALWAYS" />
+                <Label styleClass="window-title" text="Меткий стрелок" />
+                <Button mnemonicParsing="false" onAction="#onCloseWindow" styleClass="close-button" text="Закрыть" />
             </children>
             <BorderPane.margin>
                 <Insets bottom="14.0" />
@@ -50,7 +54,7 @@
                         </HBox>
                         <HBox spacing="8.0" styleClass="stats-row">
                             <children>
-                                <Label styleClass="stats-label" text="Выстрелы" />
+                                <Label styleClass="stats-label" text="Выстрелов" />
                                 <Label fx:id="shotsLabel" styleClass="stats-value" text="0" />
                             </children>
                         </HBox>

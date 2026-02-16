@@ -26,15 +26,16 @@ final class ArrowModel {
         this.height = height;
     }
 
-    void activate(double startX, double startY, double angleDegrees) {
+    void activate(double startX, double startY, double angleDegrees, double speedMultiplier) {
         active = true;
         x = startX;
         y = startY;
         this.angleDegrees = angleDegrees;
 
         double angleRadians = Math.toRadians(angleDegrees);
-        velocityX = speed * Math.cos(angleRadians);
-        velocityY = -speed * Math.sin(angleRadians);
+        double finalSpeed = speed * speedMultiplier;
+        velocityX = finalSpeed * Math.cos(angleRadians);
+        velocityY = -finalSpeed * Math.sin(angleRadians);
     }
 
     void deactivate() {
