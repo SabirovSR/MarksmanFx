@@ -1,0 +1,106 @@
+.root {
+    -fx-background-color: linear-gradient(to bottom right, #0b1020, #10233f 40%, #0f766e);
+    -fx-padding: 14;
+}
+
+.toolbar {
+    -fx-background-color: rgba(8, 13, 27, 0.72);
+    -fx-background-radius: 14;
+    -fx-padding: 12 14;
+}
+
+.button {
+    -fx-background-color: #24324d;
+    -fx-text-fill: #f8fafc;
+    -fx-font-size: 14px;
+    -fx-font-weight: 700;
+    -fx-background-radius: 12;
+    -fx-padding: 8 14;
+    -fx-cursor: hand;
+}
+
+.button:hover {
+    -fx-background-color: #2f4265;
+}
+
+.accent-button {
+    -fx-background-color: #16a34a;
+}
+
+.accent-button:hover {
+    -fx-background-color: #22c55e;
+}
+
+.shoot-button {
+    -fx-background-color: #f97316;
+    -fx-text-fill: #111827;
+}
+
+.shoot-button:hover {
+    -fx-background-color: #fb923c;
+}
+
+.canvas-holder {
+    -fx-padding: 10;
+    -fx-background-color: linear-gradient(to bottom, rgba(20, 34, 62, 0.65), rgba(7, 12, 23, 0.72));
+    -fx-background-radius: 18;
+}
+
+.side-column {
+    -fx-min-width: 320;
+    -fx-pref-width: 320;
+}
+
+.stats-pane,
+.control-pane {
+    -fx-background-color: rgba(7, 11, 22, 0.82);
+    -fx-background-radius: 14;
+    -fx-padding: 14;
+}
+
+.stats-title {
+    -fx-text-fill: #38bdf8;
+    -fx-font-size: 18px;
+    -fx-font-weight: 800;
+}
+
+.stats-row {
+    -fx-background-color: rgba(255, 255, 255, 0.05);
+    -fx-background-radius: 10;
+    -fx-padding: 8;
+}
+
+.stats-label {
+    -fx-text-fill: #cbd5e1;
+    -fx-font-size: 14px;
+    -fx-font-weight: 700;
+}
+
+.stats-value {
+    -fx-text-fill: #f8fafc;
+    -fx-font-size: 16px;
+    -fx-font-weight: 800;
+}
+
+.hint {
+    -fx-text-fill: #a5f3fc;
+    -fx-font-size: 12px;
+    -fx-padding: 8 2 0 2;
+}
+
+.tool-button {
+    -fx-background-color: #1d4ed8;
+    -fx-background-radius: 10;
+    -fx-padding: 8 10;
+}
+
+.tool-button:hover {
+    -fx-background-color: #2563eb;
+}
+
+.control-hint {
+    -fx-text-fill: #bfdbfe;
+    -fx-font-size: 12px;
+    -fx-line-spacing: 2px;
+    -fx-max-width: 286;
+}

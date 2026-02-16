@@ -1,0 +1,114 @@
+<?xml version="1.0" encoding="UTF-8"?>
+
+<?import javafx.geometry.Insets?>
+<?import javafx.scene.canvas.Canvas?>
+<?import javafx.scene.control.Button?>
+<?import javafx.scene.control.Label?>
+<?import javafx.scene.layout.BorderPane?>
+<?import javafx.scene.layout.HBox?>
+<?import javafx.scene.layout.Region?>
+<?import javafx.scene.layout.StackPane?>
+<?import javafx.scene.layout.VBox?>
+
+<BorderPane fx:id="rootPane" prefHeight="780.0" prefWidth="1200.0" styleClass="root" xmlns="http://javafx.com/javafx/22.0.1" xmlns:fx="http://javafx.com/fxml/1" fx:controller="org.example.marksmanfx.Controllers.MainViewController">
+    <top>
+        <HBox alignment="CENTER_LEFT" spacing="12.0" styleClass="toolbar">
+            <children>
+                <Button mnemonicParsing="false" onAction="#onStartGame" styleClass="accent-button" text="Старт [Enter]" />
+                <Button mnemonicParsing="false" onAction="#onStopGame" text="Рестарт [T]" />
+                <Button fx:id="pauseButton" mnemonicParsing="false" onAction="#onPauseResume" text="Пауза [P]" />
+                <Button fx:id="shootButton" mnemonicParsing="false" onAction="#onShoot" styleClass="shoot-button" text="Выстрел [Space]" />
+            </children>
+            <BorderPane.margin>
+                <Insets bottom="14.0" />
+            </BorderPane.margin>
+        </HBox>
+    </top>
+
+    <center>
+        <StackPane fx:id="gameFieldContainer" styleClass="canvas-holder">
+            <children>
+                <Canvas fx:id="gameCanvas" height="560.0" width="960.0" />
+            </children>
+            <BorderPane.margin>
+                <Insets right="14.0" />
+            </BorderPane.margin>
+        </StackPane>
+    </center>
+
+    <right>
+        <VBox spacing="6.0" styleClass="side-column">
+            <children>
+                <VBox spacing="12.0" styleClass="stats-pane">
+                    <children>
+                        <Label styleClass="stats-title" text="СТАТИСТИКА" />
+                        <HBox spacing="8.0" styleClass="stats-row">
+                            <children>
+                                <Label styleClass="stats-label" text="Счёт" />
+                                <Label fx:id="scoreLabel" styleClass="stats-value" text="0" />
+                            </children>
+                        </HBox>
+                        <HBox spacing="8.0" styleClass="stats-row">
+                            <children>
+                                <Label styleClass="stats-label" text="Выстрелы" />
+                                <Label fx:id="shotsLabel" styleClass="stats-value" text="0" />
+                            </children>
+                        </HBox>
+                        <HBox spacing="8.0" styleClass="stats-row">
+                            <children>
+                                <Label styleClass="stats-label" text="Уровень" />
+                                <Label fx:id="levelLabel" styleClass="stats-value" text="1" />
+                            </children>
+                        </HBox>
+                        <HBox spacing="8.0" styleClass="stats-row">
+                            <children>
+                                <Label styleClass="stats-label" text="Угол" />
+                                <Label fx:id="angleLabel" styleClass="stats-value" text="0°" />
+                            </children>
+                        </HBox>
+                        <HBox spacing="8.0" styleClass="stats-row">
+                            <children>
+                                <Label styleClass="stats-label" text="Поза" />
+                                <Label fx:id="postureLabel" styleClass="stats-value" text="Стойка" />
+                            </children>
+                        </HBox>
+                        <HBox spacing="8.0" styleClass="stats-row">
+                            <children>
+                                <Label styleClass="stats-label" text="Статус" />
+                                <Label fx:id="statusLabel" styleClass="stats-value" text="Остановлена" />
+                            </children>
+                        </HBox>
+                        <Label styleClass="hint" text="Ближняя мишень: +1&#10;Дальняя мишень: +2&#10;Каждые 10 очков: новый уровень скорости" wrapText="true" />
+                    </children>
+                </VBox>
+
+                <Region VBox.vgrow="ALWAYS" />
+
+                <VBox spacing="10.0" styleClass="control-pane">
+                    <children>
+                        <Label styleClass="stats-title" text="УПРАВЛЕНИЕ" />
+                        <HBox spacing="8.0">
+                            <children>
+                                <Button fx:id="moveUpButton" mnemonicParsing="false" onAction="#onMoveUp" styleClass="tool-button" text="Выше [W/↑]" />
+                                <Button fx:id="moveDownButton" mnemonicParsing="false" onAction="#onMoveDown" styleClass="tool-button" text="Ниже [S/↓]" />
+                            </children>
+                        </HBox>
+                        <HBox spacing="8.0">
+                            <children>
+                                <Button fx:id="moveLeftButton" mnemonicParsing="false" onAction="#onMoveLeft" styleClass="tool-button" text="Левее [A]" />
+                                <Button fx:id="moveRightButton" mnemonicParsing="false" onAction="#onMoveRight" styleClass="tool-button" text="Правее [D]" />
+                            </children>
+                        </HBox>
+                        <HBox spacing="8.0">
+                            <children>
+                                <Button fx:id="aimDownButton" mnemonicParsing="false" onAction="#onAimDown" styleClass="tool-button" text="Угол - [E/→]" />
+                                <Button fx:id="aimUpButton" mnemonicParsing="false" onAction="#onAimUp" styleClass="tool-button" text="Угол + [Q/←]" />
+                            </children>
+                        </HBox>
+                        <Button mnemonicParsing="false" onAction="#onToggleCrouch" styleClass="tool-button" text="Присесть / Встать [C]" />
+                    </children>
+                </VBox>
+            </children>
+        </VBox>
+    </right>
+</BorderPane>
