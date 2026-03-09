@@ -5,18 +5,11 @@
   </component>
   <component name="ChangeListManager">
     <list default="true" id="0f83e7fb-85ab-4f25-bfa3-c7d28ae62571" name="Changes" comment="">
-      <change afterPath="$PROJECT_DIR$/ReadMe.md" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/.gitignore" beforeDir="false" afterPath="$PROJECT_DIR$/.gitignore" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/.idea/encodings.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/encodings.xml" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/main/java/org/example/marksmanfx/App.java" beforeDir="false" afterPath="$PROJECT_DIR$/src/main/java/org/example/marksmanfx/App.java" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/ReadMe.md" beforeDir="false" afterPath="$PROJECT_DIR$/ReadMe.md" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/src/main/java/org/example/marksmanfx/Controllers/MainViewController.java" beforeDir="false" afterPath="$PROJECT_DIR$/src/main/java/org/example/marksmanfx/Controllers/MainViewController.java" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/src/main/java/org/example/marksmanfx/Engine/GameEngine.java" beforeDir="false" afterPath="$PROJECT_DIR$/src/main/java/org/example/marksmanfx/Engine/GameEngine.java" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/main/java/org/example/marksmanfx/Models/ArrowModel.java" beforeDir="false" afterPath="$PROJECT_DIR$/src/main/java/org/example/marksmanfx/Models/ArrowModel.java" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/src/main/java/org/example/marksmanfx/Models/GameModel.java" beforeDir="false" afterPath="$PROJECT_DIR$/src/main/java/org/example/marksmanfx/Models/GameModel.java" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/main/java/org/example/marksmanfx/Models/TargetModel.java" beforeDir="false" afterPath="$PROJECT_DIR$/src/main/java/org/example/marksmanfx/Models/TargetModel.java" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/main/java/org/example/marksmanfx/Models/TargetType.java" beforeDir="false" afterPath="$PROJECT_DIR$/src/main/java/org/example/marksmanfx/Models/TargetType.java" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/main/resources/org/example/marksmanfx/MainView.fxml" beforeDir="false" afterPath="$PROJECT_DIR$/src/main/resources/org/example/marksmanfx/MainView.fxml" afterDir="false" />
     </list>
     <option name="SHOW_DIALOG" value="false" />
     <option name="HIGHLIGHT_CONFLICTS" value="true" />
@@ -182,7 +175,7 @@
       <workItem from="1771231017810" duration="4313000" />
       <workItem from="1772259499339" duration="2785000" />
       <workItem from="1772282483402" duration="209000" />
-      <workItem from="1773046436082" duration="12339000" />
+      <workItem from="1773046436082" duration="16149000" />
     </task>
     <task id="LOCAL-00001" summary="Создание проекта Fx">
       <option name="closed" value="true" />

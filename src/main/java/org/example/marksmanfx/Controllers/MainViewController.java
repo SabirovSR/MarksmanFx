@@ -1,5 +1,6 @@
 package org.example.marksmanfx.Controllers;
 
+import javafx.animation.AnimationTimer;
 import javafx.application.Platform;
 import javafx.fxml.FXML;
 import javafx.scene.Scene;
@@ -11,7 +12,6 @@ import javafx.scene.input.KeyCode;
 import javafx.scene.input.KeyEvent;
 import javafx.scene.input.MouseEvent;
 import javafx.scene.layout.BorderPane;
-import javafx.scene.layout.HBox;
 import javafx.scene.layout.StackPane;
 import javafx.scene.paint.Color;
 import javafx.scene.paint.LinearGradient;
@@ -41,28 +41,30 @@ public class MainViewController {
     private static final double WORLD_HEIGHT = 560;
     private static final double FIELD_PADDING = 10;
     private static final double CHARGE_PER_SECOND = 0.70;
+    private static final double MOVE_SPEED_PER_SECOND = 237.5;
+    private static final double AIM_SPEED_PER_SECOND = 84.375;
 
     /// Текущее состояние игры
     private final GameModel gameModel = new GameModel();
-    /// Объект, который обновляет модель и отдает кадры в `render(...)`
-    private final GameEngine gameEngine = new GameEngine(gameModel, this::render);
+    /// Объект, который обновляет модель
+    private final GameEngine gameEngine = new GameEngine(gameModel);
 
-    private volatile boolean inputLoopActive;
-    /// Отдельный поток для непрерывной обработки удерживаемого ввода
-    private Thread inputLoopThread;
+
+    private AnimationTimer animationTimer;
     private boolean keyboardBound;
     private Stage stage;
     private double dragOffsetX;
     private double dragOffsetY;
+    private long lastFrameNanos = -1L;
 
-    private volatile boolean moveUpHeld;
-    private volatile boolean moveDownHeld;
-    private volatile boolean moveLeftHeld;
-    private volatile boolean moveRightHeld;
-    private volatile boolean aimUpHeld;
-    private volatile boolean aimDownHeld;
-    private volatile boolean shootHeld;
-    private volatile double shotCharge;
+    private boolean moveUpHeld;
+    private boolean moveDownHeld;
+    private boolean moveLeftHeld;
+    private boolean moveRightHeld;
+    private boolean aimUpHeld;
+    private boolean aimDownHeld;
+    private boolean shootHeld;
+    private double shotCharge;
 
     private final Set<KeyCode> pressedKeys = EnumSet.noneOf(KeyCode.class);
 
@@ -129,11 +131,11 @@ public class MainViewController {
         // Привязываем кнопки к логике удержания
         configureHoldButtons();
 
-        // Запускаем поток обработки ввода
-        startInputLoop();
+        // Запускаем поток анимации
+        createAnimationLoop();
 
         // Сразу рисуем стартовый кадр
-        render(gameModel.snapshot());
+        render(gameEngine.snapshot());
 
         // Подключаем клавиатуру
         bindKeyboard();
@@ -142,14 +144,20 @@ public class MainViewController {
     /// Запускаем новую игру
     @FXML
     private void onStartGame() {
+        shotCharge = 0;
+        lastFrameNanos = -1L;
         gameEngine.startNewGame();
+        render(gameEngine.snapshot());
         requestGameFocus();
     }
 
     /// Останавливаем игру
     @FXML
     private void onStopGame() {
+        shootHeld = false;
+        shotCharge = 0;
         gameEngine.stopGame();
+        render(gameEngine.snapshot());
         requestGameFocus();
     }
 
@@ -157,6 +165,8 @@ public class MainViewController {
     @FXML
     private void onPauseResume() {
         gameEngine.togglePause();
+        lastFrameNanos = -1L;
+        render(gameEngine.snapshot());
         requestGameFocus();
     }
 
@@ -171,12 +181,14 @@ public class MainViewController {
     @FXML
     private void onAimUp() {
         gameEngine.aimUp();
+        render(gameEngine.snapshot());
         requestGameFocus();
     }
 
     @FXML
     private void onAimDown() {
         gameEngine.aimDown();
+        render(gameEngine.snapshot());
         requestGameFocus();
     }
 
@@ -184,24 +196,28 @@ public class MainViewController {
     @FXML
     private void onMoveUp() {
         gameEngine.moveArcherUp();
+        render(gameEngine.snapshot());
         requestGameFocus();
     }
 
     @FXML
     private void onMoveDown() {
         gameEngine.moveArcherDown();
+        render(gameEngine.snapshot());
         requestGameFocus();
     }
 
     @FXML
     private void onMoveLeft() {
         gameEngine.moveArcherLeft();
+        render(gameEngine.snapshot());
         requestGameFocus();
     }
 
     @FXML
     private void onMoveRight() {
         gameEngine.moveArcherRight();
+        render(gameEngine.snapshot());
         requestGameFocus();
     }
 
@@ -209,14 +225,15 @@ public class MainViewController {
     @FXML
     private void onToggleCrouch() {
         gameEngine.toggleCrouch();
+        render(gameEngine.snapshot());
         requestGameFocus();
     }
 
     /// Останавливаем поток ввода и просим GameEngine завершить фоновые циклы
     public void shutdown() {
-        inputLoopActive = false;
-        gameModel.wakeWaitingThreads();
-        gameEngine.shutdown();
+        if (animationTimer != null) {
+            animationTimer.stop();
+        }
     }
 
     /// Запоминаем смещение курсора относительно окна в момент начала перетаскивания.
@@ -352,48 +369,50 @@ public class MainViewController {
         button.setOnMouseExited(event -> onRelease.run());
     }
 
-    /// Запускаем отдельный поток `marksman-input`
-    private void startInputLoop() {
-        inputLoopActive = true;
-        inputLoopThread = new Thread(() -> {
-            while (inputLoopActive) {
-                if (!gameModel.waitWhilePaused()) {
-                    break;
+    /// Запускаем animationTimer
+    private void createAnimationLoop() {
+        animationTimer = new AnimationTimer() {
+            @Override
+            public void handle(long now) {
+                if (lastFrameNanos < 0) {
+                    lastFrameNanos = now;
+                    render(gameEngine.snapshot());
+                    return;
                 }
 
-                double deltaX = (moveRightHeld ? 1 : 0) - (moveLeftHeld ? 1 : 0);
-                double deltaY = (moveDownHeld ? 1 : 0) - (moveUpHeld ? 1 : 0);
-                double deltaAim = (aimUpHeld ? 1 : 0) - (aimDownHeld ? 1 : 0);
-                boolean chargeChanged = false;
+                double deltaSeconds = (now - lastFrameNanos) / 1_000_000_000.0;
+                lastFrameNanos = now;
 
-                if (deltaX != 0 || deltaY != 0) {
-                    gameEngine.moveArcher(deltaX * 3.8, deltaY * 3.8);
-                }
-                if (deltaAim != 0) {
-                    gameEngine.aim(deltaAim * 1.35);
-                }
-
-                if (shootHeld) {
-                    GameSnapshot snapshot = gameModel.snapshot();
-                    if (snapshot.running() && !snapshot.paused() && !snapshot.arrow().active()) {
-                        double nextCharge = Math.min(1.0, shotCharge + CHARGE_PER_SECOND * 0.016);
-                        if (Math.abs(nextCharge - shotCharge) > 0.0001) {
-                            shotCharge = nextCharge;
-                            chargeChanged = true;
-                        }
-                    }
-                }
-
-                if (chargeChanged) {
-                    Platform.runLater(() -> updateShootButtonText(gameModel.snapshot()));
-                }
-
-                sleep(16);
+                processContinuousInput(deltaSeconds);
+                gameEngine.update(deltaSeconds);
+                render(gameEngine.snapshot());
             }
-        }, "marksman-input");
+        };
 
-        inputLoopThread.setDaemon(true);
-        inputLoopThread.start();
+        animationTimer.start();
+    }
+
+    private void processContinuousInput(double deltaSeconds) {
+        double deltaX = (moveRightHeld ? 1 : 0) - (moveLeftHeld ? 1 : 0);
+        double deltaY = (moveDownHeld ? 1 : 0) - (moveUpHeld ? 1 : 0);
+        double deltaAim = (aimUpHeld ? 1 : 0) - (aimDownHeld ? 1 : 0);
+
+        if (deltaX != 0 || deltaY != 0) {
+            gameEngine.moveArcher(deltaX * MOVE_SPEED_PER_SECOND * deltaSeconds,
+                    deltaY * MOVE_SPEED_PER_SECOND * deltaSeconds);
+        }
+        if (deltaAim != 0) {
+            gameEngine.aim(deltaAim * AIM_SPEED_PER_SECOND * deltaSeconds);
+        }
+
+        if (!shootHeld) {
+            return;
+        }
+
+        GameSnapshot snapshot = gameEngine.snapshot();
+        if (snapshot.running() && !snapshot.paused() && !snapshot.arrow().active()) {
+            shotCharge = Math.min(1.0, shotCharge + CHARGE_PER_SECOND * deltaSeconds);
+        }
     }
 
     private void startChargingShot() {
@@ -412,7 +431,7 @@ public class MainViewController {
         double charge = shotCharge;
         shotCharge = 0;
         gameEngine.fireArrow(charge);
-        Platform.runLater(() -> updateShootButtonText(gameModel.snapshot()));
+        render(gameEngine.snapshot());
     }
 
     /// Возвращаем фокус корневой панели. Это нужно, чтобы после клика по кнопке клавиатура снова управляла игрой
@@ -436,7 +455,6 @@ public class MainViewController {
         drawTarget(gc, snapshot.nearTarget());
         drawTarget(gc, snapshot.farTarget());
         drawArrow(gc, snapshot.arrow());
-
 
         if (snapshot.running() && snapshot.paused()) {
             drawPauseOverlay(gc);
@@ -690,13 +708,5 @@ public class MainViewController {
                 tailX - dirX * 8 - perpX * (arrow.height() * 0.5),
                 tailY - dirY * 8 - perpY * (arrow.height() * 0.5)
         );
-    }
-
-    private static void sleep(long milliseconds) {
-        try {
-            Thread.sleep(milliseconds);
-        } catch (InterruptedException ignored) {
-            Thread.currentThread().interrupt();
-        }
     }
 }

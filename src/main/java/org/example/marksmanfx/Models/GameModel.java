@@ -23,12 +23,6 @@ public class GameModel {
     private static final double MIN_SHOT_SPEED_MULTIPLIER = 1.0;
     private static final double MAX_SHOT_SPEED_MULTIPLIER = 2.4;
 
-    /// К модели обращаются сразу несколько потоков:
-    /// - поток JavaFX через кнопки и отрисовку;
-    /// - поток обработки ввода;
-    /// - игровой цикл мишеней;
-    /// - поток полета стрелы.
-    /// Чтобы состояние не ломалось от одновременного доступа, почти все методы завернуты в `synchronized(lock)`
     private final Object lock = new Object();
 
     private final TargetModel nearTarget = new TargetModel(TargetType.NEAR, 640, 110, 90, 36, FIELD_HEIGHT - 36);
@@ -77,40 +71,9 @@ public class GameModel {
                 return;
             }
             paused = !paused;
-            if (!paused) {
-                lock.notifyAll();
-            }
         }
     }
 
-    public boolean isPaused() {
-        synchronized (lock) {
-            return paused;
-        }
-    }
-
-    public boolean waitWhilePaused() {
-        synchronized (lock) {
-            while (running && paused) {
-                try {
-                    lock.wait();
-                } catch (InterruptedException ignored) {
-                    Thread.currentThread().interrupt();
-                    return false;
-                }
-            }
-
-            return true;
-        }
-    }
-
-    public void wakeWaitingThreads() {
-        synchronized (lock) {
-            lock.notifyAll();
-        }
-    }
-
-    /// Проверяем, можно ли стрелять, и если можно, активируем стрелу
     public boolean fireArrow(double chargeRatio) {
         synchronized (lock) {
             if (!running || paused || arrow.isActive()) {
