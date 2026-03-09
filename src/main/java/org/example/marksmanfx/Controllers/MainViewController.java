@@ -31,16 +31,24 @@ import java.util.EnumSet;
 import java.util.Locale;
 import java.util.Set;
 
+/// Главный класс интерфейса.
+/// Связывает кнопки, клавиатуру, холст `Canvas`, подписи со статистикой и игровой движок.
+/// 1. Подписка на события JavaFX.
+/// 2. Хранение состояния удерживаемых клавиш/кнопок.
+/// 3. Отрисовка кадра на `Canvas`.
 public class MainViewController {
     private static final double WORLD_WIDTH = 960;
     private static final double WORLD_HEIGHT = 560;
     private static final double FIELD_PADDING = 10;
     private static final double CHARGE_PER_SECOND = 0.70;
 
+    /// Текущее состояние игры
     private final GameModel gameModel = new GameModel();
+    /// Объект, который обновляет модель и отдает кадры в `render(...)`
     private final GameEngine gameEngine = new GameEngine(gameModel, this::render);
 
     private volatile boolean inputLoopActive;
+    /// Отдельный поток для непрерывной обработки удерживаемого ввода
     private Thread inputLoopThread;
     private boolean keyboardBound;
     private Stage stage;
@@ -60,9 +68,6 @@ public class MainViewController {
 
     @FXML
     private BorderPane rootPane;
-
-    @FXML
-    private HBox topBar;
 
     @FXML
     private StackPane gameFieldContainer;
@@ -118,37 +123,51 @@ public class MainViewController {
 
     @FXML
     private void initialize() {
+        // Настраиваем размеры области с холстом
         configureCanvasHost();
+
+        // Привязываем кнопки к логике удержания
         configureHoldButtons();
+
+        // Запускаем поток обработки ввода
         startInputLoop();
+
+        // Сразу рисуем стартовый кадр
         render(gameModel.snapshot());
+
+        // Подключаем клавиатуру
         bindKeyboard();
     }
 
+    /// Запускаем новую игру
     @FXML
     private void onStartGame() {
         gameEngine.startNewGame();
         requestGameFocus();
     }
 
+    /// Останавливаем игру
     @FXML
     private void onStopGame() {
         gameEngine.stopGame();
         requestGameFocus();
     }
 
+    /// Переключаем паузу
     @FXML
     private void onPauseResume() {
         gameEngine.togglePause();
         requestGameFocus();
     }
 
+    /// Удерживаем - копим силу, когда отпускаем - стреляем
     @FXML
     private void onShoot() {
         releaseChargingShot();
         requestGameFocus();
     }
 
+    /// Меняем угол прицеливания на фиксированный шаг
     @FXML
     private void onAimUp() {
         gameEngine.aimUp();
@@ -161,6 +180,7 @@ public class MainViewController {
         requestGameFocus();
     }
 
+    /// Сдвигаем лучника по полю на фиксированную величину
     @FXML
     private void onMoveUp() {
         gameEngine.moveArcherUp();
@@ -185,17 +205,22 @@ public class MainViewController {
         requestGameFocus();
     }
 
+    /// Переключаем стойку лучника: обычная или присед
     @FXML
     private void onToggleCrouch() {
         gameEngine.toggleCrouch();
         requestGameFocus();
     }
 
+    /// Останавливаем поток ввода и просим GameEngine завершить фоновые циклы
     public void shutdown() {
         inputLoopActive = false;
+        gameModel.wakeWaitingThreads();
         gameEngine.shutdown();
     }
 
+    /// Запоминаем смещение курсора относительно окна в момент начала перетаскивания.
+    /// Все из-за кастомного StageStyle, потому что указали в App StageStyle.UNDECORATED
     @FXML
     private void onTopBarPressed(MouseEvent event) {
         if (stage == null) {
@@ -205,6 +230,7 @@ public class MainViewController {
         dragOffsetY = event.getSceneY();
     }
 
+    /// Двигаем окно вслед за мышью
     @FXML
     private void onTopBarDragged(MouseEvent event) {
         if (stage == null) {
@@ -214,6 +240,7 @@ public class MainViewController {
         stage.setY(event.getScreenY() - dragOffsetY);
     }
 
+    /// Закрываем окно
     @FXML
     private void onCloseWindow() {
         if (stage != null) {
@@ -223,6 +250,7 @@ public class MainViewController {
         }
     }
 
+    /// Подключаем обработчики клавиатуры к сцене
     private void bindKeyboard() {
         rootPane.setFocusTraversable(true);
         Platform.runLater(() -> {
@@ -242,6 +270,7 @@ public class MainViewController {
         });
     }
 
+    /// Обрабатываем нажатия клавиш
     private void handleKeyPressed(KeyEvent event) {
         KeyCode code = event.getCode();
         if (!pressedKeys.add(code)) {
@@ -269,6 +298,7 @@ public class MainViewController {
         event.consume();
     }
 
+    /// Снимаем флаг удержания
     private void handleKeyReleased(KeyEvent event) {
         KeyCode code = event.getCode();
         pressedKeys.remove(code);
@@ -288,6 +318,7 @@ public class MainViewController {
         event.consume();
     }
 
+    /// Задаем размеры контейнера и холста
     private void configureCanvasHost() {
         double hostWidth = WORLD_WIDTH + FIELD_PADDING * 2;
         double hostHeight = WORLD_HEIGHT + FIELD_PADDING * 2;
@@ -300,6 +331,7 @@ public class MainViewController {
         gameCanvas.setHeight(WORLD_HEIGHT);
     }
 
+    /// Подключаем кнопки интерфейса к механизму удержани
     private void configureHoldButtons() {
         bindHold(moveUpButton, () -> moveUpHeld = true, () -> moveUpHeld = false);
         bindHold(moveDownButton, () -> moveDownHeld = true, () -> moveDownHeld = false);
@@ -310,6 +342,7 @@ public class MainViewController {
         bindHold(shootButton, this::startChargingShot, this::releaseChargingShot);
     }
 
+    /// Общий метод для всех кнопок удержания
     private void bindHold(Button button, Runnable onPress, Runnable onRelease) {
         button.setOnMousePressed(event -> {
             onPress.run();
@@ -319,10 +352,15 @@ public class MainViewController {
         button.setOnMouseExited(event -> onRelease.run());
     }
 
+    /// Запускаем отдельный поток `marksman-input`
     private void startInputLoop() {
         inputLoopActive = true;
         inputLoopThread = new Thread(() -> {
             while (inputLoopActive) {
+                if (!gameModel.waitWhilePaused()) {
+                    break;
+                }
+
                 double deltaX = (moveRightHeld ? 1 : 0) - (moveLeftHeld ? 1 : 0);
                 double deltaY = (moveDownHeld ? 1 : 0) - (moveUpHeld ? 1 : 0);
                 double deltaAim = (aimUpHeld ? 1 : 0) - (aimDownHeld ? 1 : 0);
@@ -362,6 +400,7 @@ public class MainViewController {
         shootHeld = true;
     }
 
+    /// Заканчиваем заряд, сбрасываем накопленную силу и передаем ее в gameEngine.fireArrow(charge)
     private void releaseChargingShot() {
         boolean wasHeld = shootHeld;
         shootHeld = false;
@@ -376,12 +415,14 @@ public class MainViewController {
         Platform.runLater(() -> updateShootButtonText(gameModel.snapshot()));
     }
 
+    /// Возвращаем фокус корневой панели. Это нужно, чтобы после клика по кнопке клавиатура снова управляла игрой
     private void requestGameFocus() {
         if (rootPane != null) {
             rootPane.requestFocus();
         }
     }
 
+    /// Главный метод отрисовки кадра
     private void render(GameSnapshot snapshot) {
         GraphicsContext gc = gameCanvas.getGraphicsContext2D();
 
@@ -395,6 +436,7 @@ public class MainViewController {
         drawTarget(gc, snapshot.nearTarget());
         drawTarget(gc, snapshot.farTarget());
         drawArrow(gc, snapshot.arrow());
+
 
         if (snapshot.running() && snapshot.paused()) {
             drawPauseOverlay(gc);
@@ -419,6 +461,7 @@ public class MainViewController {
         updateShootButtonText(snapshot);
     }
 
+    /// Обновляем надпись на кнопке выстрела. Если идет зарядка, показываем шкалу и процент
     private void updateShootButtonText(GameSnapshot snapshot) {
         int bars = (int) Math.round(shotCharge * 10);
         String bar = "█".repeat(Math.max(0, bars)) + "░".repeat(Math.max(0, 10 - bars));
@@ -431,6 +474,7 @@ public class MainViewController {
         }
     }
 
+    /// Создаем скругленную область отсечения, чтобы поле выглядело аккуратнее
     private static void applyRoundedClip(GraphicsContext gc, double x, double y, double width, double height, double radius) {
         double r = Math.min(radius, Math.min(width, height) * 0.5);
 
@@ -448,6 +492,7 @@ public class MainViewController {
         gc.clip();
     }
 
+    /// Рисуем фон, световые пятна и затемнение нижней части поля
     private static void drawBackground(GraphicsContext gc, double width, double height) {
         gc.setFill(new LinearGradient(
                 0,
@@ -471,6 +516,7 @@ public class MainViewController {
         gc.fillRect(0, height * 0.76, width, height * 0.24);
     }
 
+    /// Рисуем полупрозрачную плашку паузы поверх поля
     private static void drawPauseOverlay(GraphicsContext gc) {
         gc.setFill(Color.rgb(4, 10, 22, 0.52));
         gc.fillRect(0, 0, WORLD_WIDTH, WORLD_HEIGHT);
@@ -480,9 +526,10 @@ public class MainViewController {
 
         gc.setFill(Color.web("#0f172a"));
         gc.setFont(Font.font("System", FontWeight.BOLD, 34));
-        gc.fillText("ПАУЗА", WORLD_WIDTH * 0.5 - 72, WORLD_HEIGHT * 0.5 + 12);
+        gc.fillText("ПАУЗА", WORLD_WIDTH * 0.5 - 60, WORLD_HEIGHT * 0.5 + 12);
     }
 
+    /// Рисуем вертикальные направляющие по осям движения мишеней
     private static void drawGuides(GraphicsContext gc, double height, double nearX, double farX) {
         gc.setStroke(Color.rgb(188, 205, 255, 0.42));
         gc.setLineWidth(3);
@@ -493,6 +540,7 @@ public class MainViewController {
         gc.strokeLine(farX + 27.5, 24, farX + 27.5, height - 24);
     }
 
+    /// Рисуем лучника
     private static void drawArcher(GraphicsContext gc, double archerX, double archerY, double aimAngleDegrees, boolean crouched) {
         double bodyX = archerX;
         double crouchDrop = crouched ? 58 : 0;
@@ -562,6 +610,7 @@ public class MainViewController {
         gc.strokeLine(bowTopX, bowTopY, bowBottomX, bowBottomY);
     }
 
+    /// Рисуем ближнюю и дальнюю мишень разными цветами
     private static void drawTarget(GraphicsContext gc, TargetSnapshot target) {
         double x = target.x();
         double y = target.y();
@@ -586,6 +635,7 @@ public class MainViewController {
         }
     }
 
+    /// Рисуем стрелу с учетом текущего угла
     private static void drawArrow(GraphicsContext gc, ArrowSnapshot arrow) {
         if (!arrow.active()) {
             return;

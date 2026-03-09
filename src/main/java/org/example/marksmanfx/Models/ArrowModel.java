@@ -1,5 +1,6 @@
 package org.example.marksmanfx.Models;
 
+/// Внутренняя модель стрелы
 final class ArrowModel {
     private final double speed;
     private final double minX;
@@ -26,6 +27,7 @@ final class ArrowModel {
         this.height = height;
     }
 
+    /// Запускаем стрелу
     void activate(double startX, double startY, double angleDegrees, double speedMultiplier) {
         active = true;
         x = startX;
@@ -38,14 +40,17 @@ final class ArrowModel {
         velocityY = -finalSpeed * Math.sin(angleRadians);
     }
 
+    /// Отключаем стрелу
     void deactivate() {
         active = false;
     }
 
+    /// Возвращаем, летит стрела или нет
     boolean isActive() {
         return active;
     }
 
+    /// Передвигаем стрелу вперед и выключаем ее, если она вышла за допустимые границы
     void advance(double deltaSeconds) {
         if (!active) {
             return;
@@ -58,10 +63,10 @@ final class ArrowModel {
         }
     }
 
+    /// Считаюм координаты наконечника стрелы
     double tipX() {
         return x + Math.cos(Math.toRadians(angleDegrees)) * width;
     }
-
     double tipY() {
         return y - Math.sin(Math.toRadians(angleDegrees)) * width;
     }

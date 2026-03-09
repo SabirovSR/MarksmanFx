@@ -1,5 +1,13 @@
 package org.example.marksmanfx.Models;
 
+/// Центральное хранилище состояния игры
+/// - флаги `running` и `paused`;
+/// - счет и число выстрелов;
+/// - координаты лучника;
+/// - угол стрельбы;
+/// - стойка лучника;
+/// - две мишени;
+/// - стрела.
 public class GameModel {
     private static final double FIELD_WIDTH = 960;
     private static final double FIELD_HEIGHT = 560;
@@ -15,6 +23,12 @@ public class GameModel {
     private static final double MIN_SHOT_SPEED_MULTIPLIER = 1.0;
     private static final double MAX_SHOT_SPEED_MULTIPLIER = 2.4;
 
+    /// К модели обращаются сразу несколько потоков:
+    /// - поток JavaFX через кнопки и отрисовку;
+    /// - поток обработки ввода;
+    /// - игровой цикл мишеней;
+    /// - поток полета стрелы.
+    /// Чтобы состояние не ломалось от одновременного доступа, почти все методы завернуты в `synchronized(lock)`
     private final Object lock = new Object();
 
     private final TargetModel nearTarget = new TargetModel(TargetType.NEAR, 640, 110, 90, 36, FIELD_HEIGHT - 36);
@@ -34,6 +48,7 @@ public class GameModel {
         resetEntities();
     }
 
+    /// Инициализируем новую партию. Подготавливаем стартовое состояние
     public void startNewGame() {
         synchronized (lock) {
             running = true;
@@ -41,26 +56,61 @@ public class GameModel {
             score = 0;
             shots = 0;
             resetEntities();
+            lock.notifyAll();
         }
     }
 
+    /// Останавливаем игру и тоже сбрасываем объекты
     public void stopGame() {
         synchronized (lock) {
             running = false;
             paused = false;
             resetEntities();
+            lock.notifyAll();
         }
     }
 
+    /// Меняем состояние паузы, если игра вообще запущена
     public void togglePause() {
         synchronized (lock) {
             if (!running) {
                 return;
             }
             paused = !paused;
+            if (!paused) {
+                lock.notifyAll();
+            }
         }
     }
 
+    public boolean isPaused() {
+        synchronized (lock) {
+            return paused;
+        }
+    }
+
+    public boolean waitWhilePaused() {
+        synchronized (lock) {
+            while (running && paused) {
+                try {
+                    lock.wait();
+                } catch (InterruptedException ignored) {
+                    Thread.currentThread().interrupt();
+                    return false;
+                }
+            }
+
+            return true;
+        }
+    }
+
+    public void wakeWaitingThreads() {
+        synchronized (lock) {
+            lock.notifyAll();
+        }
+    }
+
+    /// Проверяем, можно ли стрелять, и если можно, активируем стрелу
     public boolean fireArrow(double chargeRatio) {
         synchronized (lock) {
             if (!running || paused || arrow.isActive()) {
@@ -72,11 +122,13 @@ public class GameModel {
             double speedMultiplier = MIN_SHOT_SPEED_MULTIPLIER
                     + (MAX_SHOT_SPEED_MULTIPLIER - MIN_SHOT_SPEED_MULTIPLIER) * clampedCharge;
 
+            // Стрела активируется с нужными координатами и углом
             arrow.activate(arrowStartX(), arrowStartY(), aimAngleDegrees, speedMultiplier);
             return true;
         }
     }
 
+    /// Перемещаем лучника в пределах разрешенной зоны
     public void moveArcher(double deltaX, double deltaY) {
         synchronized (lock) {
             if (paused) {
@@ -87,12 +139,14 @@ public class GameModel {
         }
     }
 
+    /// Меняем угол и ограничиваем его диапазоном от AIM_MIN_ANGLE = `-45` до AIM_MAX_ANGLE = `45` градусов
     public void aim(double deltaAngleDegrees) {
         synchronized (lock) {
             aimAngleDegrees = clamp(aimAngleDegrees + deltaAngleDegrees, AIM_MIN_ANGLE, AIM_MAX_ANGLE);
         }
     }
 
+    /// Дискретные шаги движения по 14 пикселей
     public void moveArcherUp() {
         moveArcher(0, -14);
     }
@@ -109,6 +163,7 @@ public class GameModel {
         moveArcher(14, 0);
     }
 
+    /// Шаги изменения угла по 4 градуса
     public void aimUp() {
         aim(4);
     }
@@ -117,6 +172,7 @@ public class GameModel {
         aim(-4);
     }
 
+    /// Меняем флаг приседа, если игра не на паузе
     public void toggleCrouch() {
         synchronized (lock) {
             if (paused) {
@@ -126,18 +182,21 @@ public class GameModel {
         }
     }
 
+    /// Двигаем обе мишени, если игра идет и не стоит на паузе
     public void updateTargets(double deltaSeconds) {
         synchronized (lock) {
             if (!running || paused) {
                 return;
             }
 
+            // Считаем множитель скорости по уровню
             double speedMultiplier = 1.0 + (currentLevel() - 1) * 0.20;
             nearTarget.advance(deltaSeconds, speedMultiplier);
             farTarget.advance(deltaSeconds, speedMultiplier);
         }
     }
 
+    /// Обновляем полет стрелы и проверяет попадания
     public boolean updateArrow(double deltaSeconds) {
         synchronized (lock) {
             if (!running) {
@@ -171,6 +230,7 @@ public class GameModel {
         }
     }
 
+    /// Создаем неизменяемый снимок всего состояния игры
     public GameSnapshot snapshot() {
         synchronized (lock) {
             return new GameSnapshot(
@@ -190,6 +250,7 @@ public class GameModel {
         }
     }
 
+    /// Инициализируем объекты в стартовые позиции
     private void resetEntities() {
         nearTarget.resetToCenter();
         farTarget.resetToCenter();
@@ -200,10 +261,12 @@ public class GameModel {
         crouched = false;
     }
 
+    /// Считаем стартовую `x`-координату стрелы относительно лучника
     private double arrowStartX() {
         return archerX + 58;
     }
 
+    /// Считаем стартовую `y`-координату стрелы. Учитываем, присел лучник или нет
     private double arrowStartY() {
         double shoulderY = archerY - (crouched ? 8 : 42);
         return shoulderY + 2;
@@ -213,6 +276,7 @@ public class GameModel {
         return Math.max(minValue, Math.min(maxValue, value));
     }
 
+    /// Возвращаем
     private int currentLevel() {
         return Math.min(MAX_LEVEL, score / 10 + 1);
     }

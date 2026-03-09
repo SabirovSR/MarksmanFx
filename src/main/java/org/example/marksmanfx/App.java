@@ -10,13 +10,10 @@ import org.example.marksmanfx.Controllers.MainViewController;
 import java.io.IOException;
 
 public class App extends Application {
-    static {
-        // Fallback to software pipeline to avoid RTTexture crashes on some GPU drivers.
-        System.setProperty("prism.order", "sw");
-    }
 
     @Override
     public void start(Stage stage) throws IOException {
+        // Кастомим системную рамку
         stage.initStyle(StageStyle.UNDECORATED);
 
         FXMLLoader fxmlLoader = new FXMLLoader(App.class.getResource("MainView.fxml"));
