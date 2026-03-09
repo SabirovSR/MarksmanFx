@@ -1,0 +1,63 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<?import javafx.geometry.Insets?>
+<?import javafx.scene.control.Button?>
+<?import javafx.scene.control.Label?>
+<?import javafx.scene.control.TextField?>
+<?import javafx.scene.layout.BorderPane?>
+<?import javafx.scene.layout.HBox?>
+<?import javafx.scene.layout.Region?>
+<?import javafx.scene.layout.StackPane?>
+<?import javafx.scene.layout.VBox?>
+
+<BorderPane xmlns="http://javafx.com/javafx"
+            xmlns:fx="http://javafx.com/fxml"
+            fx:controller="org.example.marksmanfx.client.ui.login.LoginController"
+            fx:id="rootPane"
+            styleClass="root-pane"
+            prefWidth="520" prefHeight="480">
+
+    <!-- Пользовательская шапка: перетаскивание, заголовок, кнопки окна -->
+    <top>
+        <HBox fx:id="titleBar" styleClass="toolbar" alignment="CENTER_LEFT" spacing="8">
+            <padding><Insets top="8" right="8" bottom="8" left="16"/></padding>
+
+            <Label text="⚔ Меткий стрелок — сетевая игра" styleClass="toolbar-title"/>
+            <Region HBox.hgrow="ALWAYS"/>
+
+            <!-- Кнопки окна -->
+            <Button text="—" onAction="#onMinimize" styleClass="btn-window-min"
+                    focusTraversable="false"/>
+            <Button text="✕" onAction="#onClose" styleClass="btn-window-close"
+                    focusTraversable="false"/>
+        </HBox>
+    </top>
+
+    <!-- Форма входа -->
+    <center>
+        <StackPane>
+            <VBox alignment="CENTER" spacing="14" maxWidth="360">
+                <padding><Insets top="32" right="48" bottom="40" left="48"/></padding>
+
+                <Label text="Войти в игру" styleClass="section-label"/>
+
+                <Label text="Никнейм" styleClass="field-label"/>
+                <TextField fx:id="nicknameField" promptText="Введите никнейм"
+                           styleClass="input-field" maxWidth="Infinity"/>
+
+                <Label text="Адрес сервера" styleClass="field-label"/>
+                <TextField fx:id="hostField" promptText="localhost"
+                           styleClass="input-field" maxWidth="Infinity"/>
+
+                <Label text="Порт" styleClass="field-label"/>
+                <TextField fx:id="portField" promptText="55555"
+                           styleClass="input-field" maxWidth="Infinity"/>
+
+                <Button fx:id="connectButton" text="Подключиться"
+                        onAction="#onConnect"
+                        styleClass="btn-accent" maxWidth="Infinity"/>
+
+                <Label fx:id="statusLabel" text="" styleClass="status-label" wrapText="true"/>
+            </VBox>
+        </StackPane>
+    </center>
+</BorderPane>
