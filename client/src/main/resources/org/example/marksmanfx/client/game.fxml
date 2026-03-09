@@ -1,0 +1,73 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<?import javafx.geometry.Insets?>
+<?import javafx.scene.canvas.Canvas?>
+<?import javafx.scene.control.Button?>
+<?import javafx.scene.control.Label?>
+<?import javafx.scene.layout.BorderPane?>
+<?import javafx.scene.layout.HBox?>
+<?import javafx.scene.layout.Region?>
+<?import javafx.scene.layout.StackPane?>
+<?import javafx.scene.layout.VBox?>
+
+<BorderPane xmlns="http://javafx.com/javafx"
+            xmlns:fx="http://javafx.com/fxml"
+            fx:controller="org.example.marksmanfx.client.ui.game.GameController"
+            fx:id="rootPane"
+            styleClass="root-pane"
+            prefWidth="1200" prefHeight="680">
+
+    <!-- Custom title bar / toolbar (drag handle) -->
+    <top>
+        <HBox fx:id="titleBar" styleClass="toolbar" alignment="CENTER_LEFT" spacing="12">
+            <padding><Insets top="8" right="8" bottom="8" left="16"/></padding>
+
+            <Label text="⚔ Меткий стрелок" styleClass="toolbar-title"/>
+
+            <!-- Game-state buttons -->
+            <Button fx:id="readyButton"  text="Готов [R]"
+                    onAction="#onReady"  styleClass="btn-accent"/>
+            <Button fx:id="pauseButton"  text="Пауза [P]"
+                    onAction="#onPause"  styleClass="btn-primary" disable="true"/>
+
+            <Region HBox.hgrow="ALWAYS"/>
+
+            <Label fx:id="statusLabel" text="Ожидание игроков..." styleClass="status-label"/>
+
+            <!-- Spacer + leave -->
+            <Button fx:id="leaveButton" text="Выйти из комнаты"
+                    onAction="#onLeave" styleClass="btn-danger"/>
+
+            <!-- Window controls -->
+            <Button text="—" onAction="#onMinimize" styleClass="btn-window-min"
+                    focusTraversable="false"/>
+            <Button text="✕" onAction="#onClose"    styleClass="btn-window-close"
+                    focusTraversable="false"/>
+        </HBox>
+    </top>
+
+    <!-- Game canvas -->
+    <center>
+        <StackPane styleClass="canvas-host">
+            <Canvas fx:id="gameCanvas"/>
+
+            <!-- Waiting overlay -->
+            <HBox fx:id="waitingOverlay" alignment="CENTER" styleClass="waiting-overlay">
+                <VBox alignment="CENTER" spacing="16" styleClass="waiting-box">
+                    <padding><Insets top="28" right="36" bottom="28" left="36"/></padding>
+                    <Label text="Ожидание игроков..." styleClass="waiting-title"/>
+                    <Label fx:id="waitingLabel" text="" styleClass="waiting-players" wrapText="true"
+                           maxWidth="380"/>
+                    <Label text='Нажмите «Готов [R]» для начала' styleClass="waiting-hint"/>
+                </VBox>
+            </HBox>
+        </StackPane>
+    </center>
+
+    <!-- Scoreboard -->
+    <right>
+        <VBox fx:id="scoreBoard" styleClass="side-panel" spacing="10" minWidth="190" maxWidth="190">
+            <padding><Insets top="20" right="16" bottom="20" left="16"/></padding>
+            <Label text="Счёт" styleClass="section-label"/>
+        </VBox>
+    </right>
+</BorderPane>

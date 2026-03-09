@@ -1,0 +1,64 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<?import javafx.geometry.Insets?>
+<?import javafx.scene.control.Button?>
+<?import javafx.scene.control.Label?>
+<?import javafx.scene.control.TableColumn?>
+<?import javafx.scene.control.TableView?>
+<?import javafx.scene.layout.BorderPane?>
+<?import javafx.scene.layout.HBox?>
+<?import javafx.scene.layout.Region?>
+<?import javafx.scene.layout.VBox?>
+
+<BorderPane xmlns="http://javafx.com/javafx"
+            xmlns:fx="http://javafx.com/fxml"
+            fx:controller="org.example.marksmanfx.client.ui.lobby.LobbyController"
+            styleClass="root-pane"
+            prefWidth="920" prefHeight="620">
+
+    <!-- Custom title bar -->
+    <top>
+        <HBox fx:id="titleBar" styleClass="toolbar" alignment="CENTER_LEFT" spacing="16">
+            <padding><Insets top="10" right="8" bottom="10" left="16"/></padding>
+
+            <Label text="⚔ Меткий стрелок" styleClass="toolbar-title"/>
+            <Label fx:id="welcomeLabel" text="" styleClass="toolbar-subtitle"/>
+            <Region HBox.hgrow="ALWAYS"/>
+
+            <!-- Window controls -->
+            <Button text="—" onAction="#onMinimize" styleClass="btn-window-min"
+                    focusTraversable="false"/>
+            <Button text="✕" onAction="#onClose" styleClass="btn-window-close"
+                    focusTraversable="false"/>
+        </HBox>
+    </top>
+
+    <!-- Room list -->
+    <center>
+        <VBox spacing="12" styleClass="content-pane">
+            <padding><Insets top="20" right="24" bottom="20" left="24"/></padding>
+
+            <Label text="Доступные комнаты" styleClass="section-label"/>
+
+            <TableView fx:id="roomTable" VBox.vgrow="ALWAYS" styleClass="room-table">
+                <columns>
+                    <TableColumn fx:id="colName"    text="Название"  prefWidth="340"/>
+                    <TableColumn fx:id="colPlayers" text="Игроки"    prefWidth="100"/>
+                    <TableColumn fx:id="colStatus"  text="Статус"    prefWidth="180"/>
+                </columns>
+                <placeholder>
+                    <Label text="Нет доступных комнат. Создайте первую!" styleClass="placeholder-label"/>
+                </placeholder>
+            </TableView>
+
+            <!-- Action buttons -->
+            <HBox spacing="10" alignment="CENTER_RIGHT">
+                <Button text="+ Создать комнату" onAction="#onCreateRoom" styleClass="btn-accent"/>
+                <Button fx:id="joinButton" text="Войти в комнату" onAction="#onJoinRoom"
+                        styleClass="btn-primary" disable="true"/>
+                <Button text="⚡ Быстрый матч" onAction="#onQuickMatch" styleClass="btn-primary"/>
+            </HBox>
+
+            <Label fx:id="statusLabel" text="" styleClass="status-label"/>
+        </VBox>
+    </center>
+</BorderPane>
