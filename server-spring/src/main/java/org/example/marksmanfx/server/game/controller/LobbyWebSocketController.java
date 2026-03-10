@@ -5,10 +5,13 @@ import lombok.extern.slf4j.Slf4j;
 import org.example.marksmanfx.server.game.dto.CreateRoomRequest;
 import org.example.marksmanfx.server.game.dto.JoinRoomRequest;
 import org.example.marksmanfx.server.game.dto.RoomInfoDto;
+import org.example.marksmanfx.server.game.dto.RoomStateMessage;
+import org.example.marksmanfx.server.game.model.GameRoom;
 import org.example.marksmanfx.server.game.service.RoomService;
 import org.springframework.messaging.handler.annotation.MessageMapping;
 import org.springframework.messaging.handler.annotation.Payload;
 import org.springframework.messaging.simp.SimpMessageHeaderAccessor;
+import org.springframework.messaging.simp.annotation.SendToUser;
 import org.springframework.messaging.simp.annotation.SubscribeMapping;
 import org.springframework.stereotype.Controller;
 
@@ -16,25 +19,20 @@ import java.security.Principal;
 import java.util.List;
 
 /**
- * STOMP-контроллер лобби: создание/вход в комнату и начальная загрузка списка.
+ * STOMP-контроллер лобби.
  *
- * Почему раньше «ничего не происходило»?
- * ─────────────────────────────────────
- * Клиент отправлял сообщения на /app/lobby/create, /app/lobby/join,
- * /app/lobby/quickmatch — но ни одного @MessageMapping с такими путями
- * на сервере не существовало. Spring STOMP молча дропает сообщения,
- * на которые нет обработчика: никакой ошибки в логах, никакого ответа клиенту.
- * Этот класс добавляет все три обработчика и устраняет «тихое» падение.
+ * Почему использован @SendToUser вместо convertAndSendToUser(sessionId, ...)?
+ * ──────────────────────────────────────────────────────────────────────────
+ * Старый подход: roomService вызывал convertAndSendToUser(sessionId, "/queue/room-joined", ...)
+ * Проблема: клиент подписался на /user/queue/room-joined, который Spring
+ * регистрирует по PRINCIPAL NAME (имя из JWT-токена, установленное JwtChannelInterceptor).
+ * Сервис передавал SESSION ID как "user" — это другой идентификатор.
+ * Spring не находил нужную подписку → сообщение уходило в пустоту → навигации не было.
  *
- * Маршруты:
- *   SUBSCRIBE /app/lobby           → @SubscribeMapping  — отдаём текущий список комнат
- *   SEND /app/lobby/create         → @MessageMapping    — создать комнату
- *   SEND /app/lobby/join           → @MessageMapping    — войти в комнату
- *   SEND /app/lobby/quickmatch     → @MessageMapping    — быстрый матч
- *
- * После любого из действий клиент получает два сообщения:
- *   1. /user/queue/room-joined    — персонально: roomId + состав → клиент навигирует в /game
- *   2. /topic/lobby               — широковещательно: обновлённый список всем в лобби
+ * Новый подход: @SendToUser("/queue/room-joined") на @MessageMapping методе.
+ * Spring автоматически берёт Principal из текущего STOMP-сообщения (установленный
+ * JwtChannelInterceptor) и маршрутизирует ответ на правильную клиентскую сессию.
+ * Это стандартный Spring STOMP паттерн, гарантированно работающий.
  */
 @Slf4j
 @Controller
@@ -47,16 +45,10 @@ public class LobbyWebSocketController {
     //  Первоначальная загрузка списка комнат
     // ──────────────────────────────────────────────────────────────────────
 
-    /**
-     * Мы отдаём текущий список комнат в момент подписки клиента на лобби.
-     *
-     * @SubscribeMapping срабатывает когда клиент подписывается на /app/lobby.
-     * Возвращаемый список идёт напрямую подписчику (минуя брокер) —
-     * это гарантирует что клиент увидит комнаты сразу, не ожидая изменений.
-     */
     @SubscribeMapping("/lobby")
     public List<RoomInfoDto> onLobbySubscribe(Principal principal) {
-        log.info("[Лобби] '{}' подписался → отправляем текущий список ({} комнат)",
+        if (principal == null) return List.of();
+        log.info("[Лобби] '{}' подписался → {} комнат",
                 principal.getName(), roomService.getAllRooms().size());
         return roomService.getAllRoomsInfo();
     }
@@ -66,47 +58,56 @@ public class LobbyWebSocketController {
     // ──────────────────────────────────────────────────────────────────────
 
     /**
-     * Мы создаём новую комнату по запросу аутентифицированного пользователя.
+     * Мы создаём комнату и возвращаем RoomStateMessage создателю через @SendToUser.
      *
-     * После создания:
-     *   — Создателю отправляется /user/queue/room-joined с roomId → навигация
-     *   — Всем в лобби рассылается /topic/lobby с обновлённым списком
+     * @SendToUser("/queue/room-joined") отправляет возвращаемое значение напрямую
+     * пользователю, который послал это сообщение, используя его Principal name.
+     * Клиент подписан на /user/queue/room-joined → сообщение гарантированно дойдёт.
      */
     @MessageMapping("/lobby/create")
-    public void handleCreateRoom(
+    @SendToUser("/queue/room-joined")
+    public RoomStateMessage handleCreateRoom(
             @Payload CreateRoomRequest request,
             Principal principal,
             SimpMessageHeaderAccessor headerAccessor) {
 
+        if (principal == null) {
+            log.warn("[Лобби] Запрос createRoom без аутентификации — игнорируем");
+            return null;
+        }
+
         String username  = principal.getName();
         String sessionId = headerAccessor.getSessionId();
 
-        // Мы логируем каждый запрос — это первое, что нужно увидеть в логах сервера
         log.info("[Лобби] '{}' создаёт комнату '{}' (session={})",
                 username, request.roomName(), sessionId);
 
         if (request.roomName() == null || request.roomName().isBlank()) {
             log.warn("[Лобби] '{}' прислал пустое название комнаты", username);
-            return;
+            return null;
         }
 
-        // Мы делегируем создание сервису — он оповещает нужных участников
-        roomService.createRoom(request.roomName().trim(), username, sessionId);
+        // Мы создаём комнату (без вызова sendRoomJoinedToUser — @SendToUser делает это)
+        GameRoom room = roomService.createRoom(request.roomName().trim(), username, sessionId);
+        // Мы возвращаем состояние комнаты — Spring направит его в /user/queue/room-joined
+        return roomService.buildRoomJoinedMessage(room);
     }
 
     // ──────────────────────────────────────────────────────────────────────
     //  Вход в существующую комнату
     // ──────────────────────────────────────────────────────────────────────
 
-    /**
-     * Мы добавляем пользователя в указанную комнату.
-     * Если слотов нет — он автоматически становится зрителем (логика в GameRoom).
-     */
     @MessageMapping("/lobby/join")
-    public void handleJoinRoom(
+    @SendToUser("/queue/room-joined")
+    public RoomStateMessage handleJoinRoom(
             @Payload JoinRoomRequest request,
             Principal principal,
             SimpMessageHeaderAccessor headerAccessor) {
+
+        if (principal == null) {
+            log.warn("[Лобби] Запрос joinRoom без аутентификации — игнорируем");
+            return null;
+        }
 
         String username  = principal.getName();
         String sessionId = headerAccessor.getSessionId();
@@ -115,11 +116,11 @@ public class LobbyWebSocketController {
                 username, request.roomId(), sessionId);
 
         try {
-            roomService.joinRoom(request.roomId(), username, sessionId);
+            GameRoom room = roomService.joinRoom(request.roomId(), username, sessionId);
+            return roomService.buildRoomJoinedMessage(room);
         } catch (IllegalArgumentException e) {
-            // Мы логируем ошибку и не крашим всё соединение — STOMP-сессия остаётся живой
-            log.warn("[Лобби] Ошибка входа '{}' в комнату '{}': {}",
-                    username, request.roomId(), e.getMessage());
+            log.warn("[Лобби] Ошибка входа '{}' в '{}': {}", username, request.roomId(), e.getMessage());
+            return null;
         }
     }
 
@@ -127,19 +128,22 @@ public class LobbyWebSocketController {
     //  Быстрый матч
     // ──────────────────────────────────────────────────────────────────────
 
-    /**
-     * Мы находим первую незаполненную комнату или создаём новую.
-     * Это позволяет новичкам начать игру одной кнопкой без выбора комнаты.
-     */
     @MessageMapping("/lobby/quickmatch")
-    public void handleQuickMatch(
+    @SendToUser("/queue/room-joined")
+    public RoomStateMessage handleQuickMatch(
             Principal principal,
             SimpMessageHeaderAccessor headerAccessor) {
+
+        if (principal == null) {
+            log.warn("[Лобби] Запрос quickMatch без аутентификации — игнорируем");
+            return null;
+        }
 
         String username  = principal.getName();
         String sessionId = headerAccessor.getSessionId();
 
         log.info("[Лобби] '{}' запрашивает быстрый матч (session={})", username, sessionId);
-        roomService.quickMatch(username, sessionId);
+        GameRoom room = roomService.quickMatch(username, sessionId);
+        return roomService.buildRoomJoinedMessage(room);
     }
 }

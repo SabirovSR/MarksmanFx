@@ -53,9 +53,8 @@ public class RoomService {
 
         log.info("[Комната {}] Создана игроком '{}', sessionId={}", roomId, creatorUsername, sessionId);
 
-        // Мы уведомляем создателя — он получит roomId и перейдёт в /game/{roomId}
-        sendRoomJoinedToUser(sessionId, room);
         // Мы рассылаем обновлённый список всем, кто смотрит лобби
+        // Уведомление создателю (ROOM_JOINED) отправляется через @SendToUser в контроллере
         broadcastLobbyState();
         return room;
     }
@@ -64,7 +63,7 @@ public class RoomService {
      * Мы добавляем пользователя в существующую комнату.
      * Если слотов нет — он становится зрителем автоматически.
      */
-    public RoomParticipant joinRoom(String roomId, String username, String sessionId) {
+    public GameRoom joinRoom(String roomId, String username, String sessionId) {
         GameRoom room = rooms.get(roomId);
         if (room == null) {
             throw new IllegalArgumentException("Комната не найдена: " + roomId);
@@ -76,11 +75,10 @@ public class RoomService {
 
         // Мы уведомляем всех участников комнаты об обновлении состава
         broadcastRoomState(room);
-        // Мы уведомляем вошедшего лично — он перейдёт в /game/{roomId}
-        sendRoomJoinedToUser(sessionId, room);
         // Мы обновляем счётчик игроков в списке лобби для наблюдателей
+        // Уведомление вошедшему (ROOM_JOINED) отправляется через @SendToUser в контроллере
         broadcastLobbyState();
-        return participant;
+        return room;
     }
 
     /**
@@ -107,7 +105,7 @@ public class RoomService {
      * Мы ищем первую незаполненную комнату или создаём новую.
      * Это позволяет сыграть без выбора комнаты вручную.
      */
-    public void quickMatch(String username, String sessionId) {
+    public GameRoom quickMatch(String username, String sessionId) {
         // Мы ищем первую подходящую комнату: в фазе LOBBY и с наличием слотов
         GameRoom target = rooms.values().stream()
                 .filter(r -> r.getPlayerCount() < GameRoom.MAX_PLAYERS
@@ -129,9 +127,9 @@ public class RoomService {
 
         target.addParticipant(username, sessionId);
         broadcastRoomState(target);
-        // Мы сообщаем пользователю его комнату — он перейдёт в /game/{roomId}
-        sendRoomJoinedToUser(sessionId, target);
+        // Уведомление пользователю (ROOM_JOINED) отправляется через @SendToUser в контроллере
         broadcastLobbyState();
+        return target;
     }
 
     // ──────────────────────────────────────────────────────────────────────
@@ -192,29 +190,21 @@ public class RoomService {
     }
 
     /**
-     * Мы отправляем персональное подтверждение входа в комнату.
+     * Мы строим сообщение о входе в комнату для отправки через @SendToUser.
      *
-     * Клиент подписывается на /user/queue/room-joined.
-     * При получении этого сообщения он:
-     *   1. Сохраняет currentRoom в Pinia
-     *   2. Подписывается на /topic/room/{roomId} и /topic/game/{roomId}
-     *   3. Переходит на страницу /game/{roomId}
-     *
-     * Мы используем тип "ROOM_JOINED" чтобы клиент отличил его от "ROOM_STATE".
+     * Вызывается из LobbyWebSocketController — метод помечен @SendToUser("/queue/room-joined"),
+     * поэтому Spring сам направит возвращаемое значение правильному пользователю
+     * используя его Principal (имя из JWT), а не sessionId.
+     * Именно это разрешило проблему: convertAndSendToUser(sessionId) искал подписчика
+     * по sessionId, а клиент регистрировал подписку по username → сообщение не доходило.
      */
-    private void sendRoomJoinedToUser(String sessionId, GameRoom room) {
-        RoomStateMessage msg = new RoomStateMessage(
+    public RoomStateMessage buildRoomJoinedMessage(GameRoom room) {
+        return new RoomStateMessage(
                 "ROOM_JOINED",
                 room.getRoomId(),
                 room.getRoomName(),
                 room.getPhase(),
                 room.getParticipants()
-        );
-        messagingTemplate.convertAndSendToUser(
-                sessionId,
-                "/queue/room-joined",
-                msg,
-                Map.of("simpSessionId", sessionId)
         );
     }
 

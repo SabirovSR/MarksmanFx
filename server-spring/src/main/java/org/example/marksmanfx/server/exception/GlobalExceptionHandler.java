@@ -7,6 +7,7 @@ import org.springframework.validation.FieldError;
 import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
+import org.springframework.web.servlet.resource.NoResourceFoundException;
 
 import java.util.LinkedHashMap;
 import java.util.Map;
@@ -77,17 +78,41 @@ public class GlobalExceptionHandler {
     }
 
     // ──────────────────────────────────────────────────────────────────────
+    //  404 Not Found — маршрут не существует
+    // ──────────────────────────────────────────────────────────────────────
+
+    /**
+     * Мы перехватываем NoResourceFoundException — это обычный 404, не ошибка сервера.
+     *
+     * Без этого хэндлера исключение доходило до запасного @ExceptionHandler(Exception.class),
+     * который логировал его как ERROR со стектрейсом и отвечал 500.
+     * Docker healthcheck (curl /actuator/health) до добавления actuator-зависимости
+     * генерировал этот exception при каждой проверке — отсюда спам в логах.
+     *
+     * Теперь:  404 тихо логируется на уровне DEBUG и возвращает корректный HTTP 404.
+     */
+    @ExceptionHandler(NoResourceFoundException.class)
+    public ResponseEntity<Map<String, Object>> handleNoResource(NoResourceFoundException ex) {
+        // Мы не логируем это как ERROR — это штатный сценарий, не баг сервера
+        log.debug("[404] Ресурс не найден: {}", ex.getMessage());
+
+        Map<String, Object> body = new LinkedHashMap<>();
+        body.put("message", "Ресурс не найден: " + ex.getResourcePath());
+        body.put("errors",  Map.of());
+
+        return ResponseEntity.status(HttpStatus.NOT_FOUND).body(body);
+    }
+
+    // ──────────────────────────────────────────────────────────────────────
     //  500 Internal Server Error — запасной обработчик
     // ──────────────────────────────────────────────────────────────────────
 
     /**
-     * Мы перехватываем все незапланированные исключения, которые не были обработаны
-     * в конкретных контроллерах. Это гарантирует, что клиент никогда не получит
-     * стандартный Spring HTML-стек трейс в теле ответа.
+     * Мы перехватываем все незапланированные исключения.
+     * Клиент никогда не получит стандартный Spring HTML-стектрейс в теле ответа.
      */
     @ExceptionHandler(Exception.class)
     public ResponseEntity<Map<String, Object>> handleUnexpected(Exception ex) {
-        // Мы логируем полный stacktrace только на сервере — клиенту показываем общую фразу
         log.error("[GLOBAL] Необработанное исключение: {}", ex.getMessage(), ex);
 
         Map<String, Object> body = new LinkedHashMap<>();

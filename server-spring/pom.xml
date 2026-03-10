@@ -100,6 +100,16 @@
             <optional>true</optional>
         </dependency>
 
+        <!-- Spring Boot Actuator — эндпоинты /actuator/health, /actuator/info и т.д.
+             Нужен для Docker healthcheck: curl -f http://localhost:8080/actuator/health
+             БЕЗ этой зависимости Spring не регистрирует /actuator/* маршруты,
+             запрос падает в ResourceHttpRequestHandler → NoResourceFoundException →
+             GlobalExceptionHandler логирует ERROR и отвечает 500. -->
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-actuator</artifactId>
+        </dependency>
+
         <!-- Тесты -->
         <dependency>
             <groupId>org.springframework.boot</groupId>
