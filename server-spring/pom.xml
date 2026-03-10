@@ -1,0 +1,139 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project xmlns="http://maven.apache.org/POM/4.0.0"
+         xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 https://maven.apache.org/xsd/maven-4.0.0.xsd">
+    <modelVersion>4.0.0</modelVersion>
+
+    <!--
+        Мы объявляем Spring Boot в качестве родительского POM, чтобы автоматически
+        получить BOM (Bill of Materials) со всеми согласованными версиями зависимостей.
+        Это избавляет нас от необходимости вручную указывать версии каждой Spring-библиотеки.
+    -->
+    <parent>
+        <groupId>org.springframework.boot</groupId>
+        <artifactId>spring-boot-starter-parent</artifactId>
+        <version>3.4.3</version>
+        <relativePath/>
+    </parent>
+
+    <groupId>org.example</groupId>
+    <artifactId>server-spring</artifactId>
+    <version>1.0-SNAPSHOT</version>
+    <name>MarksmanFx — Spring Boot Server</name>
+
+    <properties>
+        <java.version>21</java.version>
+        <!-- Версия JJWT для работы с JWT-токенами -->
+        <jjwt.version>0.12.6</jjwt.version>
+    </properties>
+
+    <dependencies>
+
+        <!-- ═══════════════════════════════════════════════════════════════ -->
+        <!--  Блок 1: Веб, WebSocket и STOMP                                -->
+        <!-- ═══════════════════════════════════════════════════════════════ -->
+
+        <!-- Spring MVC — для REST-контроллеров (регистрация, логин) -->
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-web</artifactId>
+        </dependency>
+
+        <!-- WebSocket + STOMP поверх него — основной транспорт для игры -->
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-websocket</artifactId>
+        </dependency>
+
+        <!-- ═══════════════════════════════════════════════════════════════ -->
+        <!--  Блок 2: Безопасность и база данных                            -->
+        <!-- ═══════════════════════════════════════════════════════════════ -->
+
+        <!-- Spring Security — фильтры аутентификации, BCrypt, CORS -->
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-security</artifactId>
+        </dependency>
+
+        <!-- JPA + Hibernate для маппинга Entity на таблицы PostgreSQL -->
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-data-jpa</artifactId>
+        </dependency>
+
+        <!-- Валидация входящих DTO (аннотации @NotBlank, @Size и т.д.) -->
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-validation</artifactId>
+        </dependency>
+
+        <!-- JDBC-драйвер PostgreSQL -->
+        <dependency>
+            <groupId>org.postgresql</groupId>
+            <artifactId>postgresql</artifactId>
+            <scope>runtime</scope>
+        </dependency>
+
+        <!-- JWT: API, реализация и Jackson-интеграция для сериализации claims -->
+        <dependency>
+            <groupId>io.jsonwebtoken</groupId>
+            <artifactId>jjwt-api</artifactId>
+            <version>${jjwt.version}</version>
+        </dependency>
+        <dependency>
+            <groupId>io.jsonwebtoken</groupId>
+            <artifactId>jjwt-impl</artifactId>
+            <version>${jjwt.version}</version>
+            <scope>runtime</scope>
+        </dependency>
+        <dependency>
+            <groupId>io.jsonwebtoken</groupId>
+            <artifactId>jjwt-jackson</artifactId>
+            <version>${jjwt.version}</version>
+            <scope>runtime</scope>
+        </dependency>
+
+        <!-- Lombok: убираем бойлерплейт (геттеры, сеттеры, конструкторы) -->
+        <dependency>
+            <groupId>org.projectlombok</groupId>
+            <artifactId>lombok</artifactId>
+            <optional>true</optional>
+        </dependency>
+
+        <!-- Тесты -->
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-test</artifactId>
+            <scope>test</scope>
+        </dependency>
+        <dependency>
+            <groupId>org.springframework.security</groupId>
+            <artifactId>spring-security-test</artifactId>
+            <scope>test</scope>
+        </dependency>
+    </dependencies>
+
+    <build>
+        <plugins>
+            <!--
+                Мы используем Spring Boot Maven Plugin для сборки «толстого» JAR
+                (fat jar / executable jar), который содержит все зависимости.
+                Это позволяет запускать сервер одной командой: java -jar server-spring.jar
+            -->
+            <plugin>
+                <groupId>org.springframework.boot</groupId>
+                <artifactId>spring-boot-maven-plugin</artifactId>
+                <configuration>
+                    <excludes>
+                        <exclude>
+                            <groupId>org.projectlombok</groupId>
+                            <artifactId>lombok</artifactId>
+                        </exclude>
+                    </excludes>
+                    <!-- Имя итогового JAR для Dockerfile -->
+                    <finalName>marksmanfx-server</finalName>
+                </configuration>
+            </plugin>
+        </plugins>
+    </build>
+</project>

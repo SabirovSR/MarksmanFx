@@ -1,0 +1,110 @@
+# ═══════════════════════════════════════════════════════════════════════════════
+# Docker Compose для локального развёртывания MarksmanFx
+#
+# Мы запускаем 3 сервиса одной командой: docker compose up --build
+#
+# Сервисы:
+#   1. postgres-db      — база данных PostgreSQL 15
+#   2. backend          — Spring Boot сервер (порт 8080)
+#   3. frontend-vue     — Vue.js SPA через Nginx (порт 80)
+#
+# Порядок запуска: postgres-db → backend → frontend-vue
+# ═══════════════════════════════════════════════════════════════════════════════
+
+version: '3.9'
+
+# Мы определяем именованную сеть для изоляции контейнеров.
+# Контейнеры обращаются друг к другу по имени сервиса (например, postgres-db:5432).
+networks:
+  marksmanfx-net:
+    driver: bridge
+
+# Именованный том для персистентного хранения данных PostgreSQL.
+# Данные сохраняются между перезапусками контейнера.
+volumes:
+  postgres_data:
+
+services:
+
+  # ─────────────────────────────────────────────────────────────────────────────
+  # Сервис 1: PostgreSQL 15
+  # ─────────────────────────────────────────────────────────────────────────────
+  postgres-db:
+    image: postgres:15-alpine
+    container_name: marksmanfx-postgres
+    restart: unless-stopped
+    environment:
+      # Мы задаём учётные данные через переменные окружения.
+      # В реальном проекте используем Docker Secrets или .env файл (не коммитим в git!).
+      POSTGRES_DB: marksmanfx
+      POSTGRES_USER: marksmanfx_user
+      POSTGRES_PASSWORD: marksmanfx_pass
+    ports:
+      # Пробрасываем порт для прямого доступа из IDE (pgAdmin, DBeaver)
+      - "5432:5432"
+    volumes:
+      # Монтируем именованный том — данные переживут перезапуск контейнера
+      - postgres_data:/var/lib/postgresql/data
+    networks:
+      - marksmanfx-net
+    healthcheck:
+      # Мы проверяем готовность PostgreSQL перед запуском backend
+      test: ["CMD-SHELL", "pg_isready -U marksmanfx_user -d marksmanfx"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+
+  # ─────────────────────────────────────────────────────────────────────────────
+  # Сервис 2: Spring Boot Backend
+  # ─────────────────────────────────────────────────────────────────────────────
+  backend:
+    build:
+      context: ./server-spring
+      dockerfile: Dockerfile
+    container_name: marksmanfx-backend
+    restart: unless-stopped
+    environment:
+      # Мы передаём параметры подключения к БД через переменные окружения.
+      # В application.yml они читаются как ${DB_URL}, ${DB_USERNAME}, ${DB_PASSWORD}.
+      # postgres-db — это имя сервиса выше, Docker разрешит его в IP автоматически.
+      DB_URL: jdbc:postgresql://postgres-db:5432/marksmanfx
+      DB_USERNAME: marksmanfx_user
+      DB_PASSWORD: marksmanfx_pass
+      DDL_AUTO: update
+      PORT: 8080
+      # ВАЖНО: В продакшене замени на длинный случайный ключ!
+      # Генерация: openssl rand -base64 64
+      JWT_SECRET: ${JWT_SECRET:-ProductionSecretKeyMustBeAtLeast256BitsLongReplaceThisInProd!}
+      JWT_EXPIRATION: 86400
+    ports:
+      - "8080:8080"
+    depends_on:
+      # Мы ждём не просто запуска, а готовности (healthy) PostgreSQL
+      postgres-db:
+        condition: service_healthy
+    networks:
+      - marksmanfx-net
+    healthcheck:
+      test: ["CMD-SHELL", "curl -f http://localhost:8080/actuator/health || exit 1"]
+      interval: 15s
+      timeout: 10s
+      retries: 3
+      start_period: 30s
+
+  # ─────────────────────────────────────────────────────────────────────────────
+  # Сервис 3: Vue.js Frontend через Nginx
+  # ─────────────────────────────────────────────────────────────────────────────
+  frontend-vue:
+    build:
+      context: ./frontend-vue
+      dockerfile: Dockerfile
+    container_name: marksmanfx-frontend
+    restart: unless-stopped
+    ports:
+      - "80:80"
+    depends_on:
+      backend:
+        condition: service_healthy
+    networks:
+      - marksmanfx-net

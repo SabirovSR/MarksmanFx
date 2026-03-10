@@ -1,0 +1,71 @@
+# ═══════════════════════════════════════════════════════════════════════════════
+# Конфигурация MarksmanFx Spring Boot сервера
+# ═══════════════════════════════════════════════════════════════════════════════
+
+spring:
+  application:
+    name: marksmanfx-server
+
+  # ─────────────────────────────────────────────────────────────────────────────
+  # База данных PostgreSQL
+  # ─────────────────────────────────────────────────────────────────────────────
+  datasource:
+    # Мы используем переменные окружения — это позволяет менять параметры БД
+    # без пересборки JAR (12-factor app methodology).
+    # В Docker Compose эти переменные задаются в секции environment.
+    url: ${DB_URL:jdbc:postgresql://localhost:5432/marksmanfx}
+    username: ${DB_USERNAME:marksmanfx_user}
+    password: ${DB_PASSWORD:marksmanfx_pass}
+    driver-class-name: org.postgresql.Driver
+    # HikariCP — пул соединений по умолчанию в Spring Boot. Оптимально для игрового сервера.
+    hikari:
+      pool-name: MarksmanFxPool
+      maximum-pool-size: 10
+      minimum-idle: 2
+      connection-timeout: 30000
+
+  # ─────────────────────────────────────────────────────────────────────────────
+  # JPA / Hibernate
+  # ─────────────────────────────────────────────────────────────────────────────
+  jpa:
+    # Мы используем validate в продакшене и update в разработке.
+    # validate — Hibernate проверяет схему, но не изменяет её (безопасно).
+    # update — Hibernate автоматически создаёт/обновляет таблицы (для разработки).
+    hibernate:
+      ddl-auto: ${DDL_AUTO:update}
+    properties:
+      hibernate:
+        dialect: org.hibernate.dialect.PostgreSQLDialect
+        # Форматирование SQL в логах для удобства отладки
+        format_sql: true
+    # Показываем SQL в логах только в dev-режиме
+    show-sql: ${SHOW_SQL:false}
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Сервер
+# ─────────────────────────────────────────────────────────────────────────────
+server:
+  port: ${PORT:8080}
+
+# ─────────────────────────────────────────────────────────────────────────────
+# JWT конфигурация (Блок 2)
+# ─────────────────────────────────────────────────────────────────────────────
+app:
+  jwt:
+    # Секретный ключ для подписи JWT. ОБЯЗАТЕЛЬНО задай через переменную окружения в продакшене!
+    # Минимальная длина для HS256: 32 символа (256 бит).
+    # Для продакшена: генерируем случайный ключ: openssl rand -base64 64
+    secret: ${JWT_SECRET:ThisIsAVeryLongSecretKeyForMarksmanFxGameServerMinimum256Bits!}
+    # Время жизни токена: 24 часа (86400 секунд)
+    expiration-seconds: ${JWT_EXPIRATION:86400}
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Логирование
+# ─────────────────────────────────────────────────────────────────────────────
+logging:
+  level:
+    org.example.marksmanfx: DEBUG
+    org.springframework.messaging: INFO
+    org.springframework.security: INFO
+    # Включаем для отладки WebSocket
+    org.springframework.web.socket: ${WS_LOG_LEVEL:INFO}
