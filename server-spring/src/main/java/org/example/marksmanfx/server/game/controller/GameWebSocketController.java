@@ -120,18 +120,22 @@ public class GameWebSocketController {
      * @SubscribeMapping срабатывает, когда клиент подписывается на /app/room/{roomId}/state.
      * Ответ идёт напрямую подписчику (не через брокер), поэтому @SendTo не нужен.
      */
+    /**
+     * Мы обрабатываем подписку клиента на состояние комнаты.
+     * Вызов joinRoom() рассылает RoomStateMessage всем участникам.
+     * Метод ничего не возвращает — широковещательная рассылка уже сделана внутри сервиса.
+     */
     @SubscribeMapping("/room/{roomId}/state")
-    public ShotBroadcastMessage onSubscribeToRoom(
+    public void onSubscribeToRoom(
             @DestinationVariable String roomId,
             Principal principal,
             SimpMessageHeaderAccessor headerAccessor) {
 
         String username  = principal.getName();
         String sessionId = headerAccessor.getSessionId();
-        log.info("[Комната {}] '{}' подключился (session={})", roomId, username, sessionId);
+        log.info("[Комната {}] '{}' запросил начальное состояние (session={})",
+                roomId, username, sessionId);
 
-        // Добавляем участника и рассылаем обновлённое состояние
         roomService.joinRoom(roomId, username, sessionId);
-        return null;
     }
 }
