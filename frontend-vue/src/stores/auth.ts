@@ -25,6 +25,14 @@ export const useAuthStore = defineStore('auth', () => {
   /** Мы отслеживаем, идёт ли сетевой запрос прямо сейчас */
   const isLoading = ref(false)
 
+  /**
+   * Мы храним ошибки валидации конкретных полей, пришедшие с сервера (400 Bad Request).
+   * Формат: { "password": "Пароль должен быть от 6 до 128 символов" }
+   * Компонент LoginView читает это значение и показывает ошибки под полями.
+   * Очищается автоматически при каждой новой попытке.
+   */
+  const lastFieldErrors = ref<Record<string, string>>({})
+
   /** Мы храним токен в реактивной переменной и синхронизируем с localStorage */
   const token     = ref<string | null>(localStorage.getItem(STORAGE_TOKEN))
   const username  = ref<string | null>(localStorage.getItem(STORAGE_USERNAME))
@@ -87,6 +95,8 @@ export const useAuthStore = defineStore('auth', () => {
     usernameInput: string,
     password:      string,
   ): Promise<boolean> {
+    // Мы сбрасываем ошибки полей перед каждой новой попыткой
+    lastFieldErrors.value = {}
     isLoading.value = true
     try {
       const res = await fetch(`${serverUrl.value}/api/auth/register`, {
@@ -95,9 +105,23 @@ export const useAuthStore = defineStore('auth', () => {
         body:    JSON.stringify({ username: usernameInput, password }),
       })
 
+      if (res.status === 400) {
+        // Мы получили ошибку валидации с сервера — разбираем структуру GlobalExceptionHandler:
+        // { "message": "Ошибка валидации", "errors": { "password": "...", "username": "..." } }
+        const body = await res.json().catch(() => ({}))
+        if (body.errors && Object.keys(body.errors).length > 0) {
+          // Мы сохраняем ошибки полей — LoginView отобразит их под инпутами
+          lastFieldErrors.value = body.errors
+          toast.warning(body.message ?? 'Ошибка валидации', 'Проверьте правильность введённых данных')
+        } else {
+          toast.error('Ошибка регистрации', body.error ?? 'Проверьте введённые данные')
+        }
+        return false
+      }
+
       if (!res.ok) {
         const err = await res.json().catch(() => ({ error: 'Ошибка регистрации' }))
-        toast.error('Ошибка регистрации', err.error)
+        toast.error('Ошибка регистрации', err.error ?? 'Неизвестная ошибка')
         return false
       }
 
@@ -174,9 +198,14 @@ export const useAuthStore = defineStore('auth', () => {
     }
   }
 
+  /** Мы сбрасываем ошибки полей вручную (например, при переключении вкладок) */
+  function clearFieldErrors() {
+    lastFieldErrors.value = {}
+  }
+
   return {
     isLoading, token, username, serverUrl,
-    isAuthenticated, bearerHeader,
-    login, register, logout, checkSavedSession, setServerUrl,
+    isAuthenticated, bearerHeader, lastFieldErrors,
+    login, register, logout, checkSavedSession, setServerUrl, clearFieldErrors,
   }
 })
