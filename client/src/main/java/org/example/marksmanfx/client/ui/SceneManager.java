@@ -2,8 +2,12 @@ package org.example.marksmanfx.client.ui;
 
 import javafx.application.Platform;
 import javafx.fxml.FXMLLoader;
+import javafx.geometry.Pos;
 import javafx.scene.Parent;
 import javafx.scene.Scene;
+import javafx.scene.control.Label;
+import javafx.scene.control.ProgressIndicator;
+import javafx.scene.layout.VBox;
 import javafx.stage.Stage;
 import org.example.marksmanfx.client.network.ServerConnection;
 import org.example.marksmanfx.client.ui.game.GameController;
@@ -34,6 +38,45 @@ public final class SceneManager {
     }
 
     // Переходы между экранами.
+
+    /**
+     * Мы показываем экран-заставку с индикатором загрузки.
+     * Отображается пока идёт проверка сохранённого токена через REST API.
+     * Создаётся программно — отдельный FXML не нужен для простой заглушки.
+     */
+    public void showSplash() {
+        ProgressIndicator spinner = new ProgressIndicator();
+        spinner.setPrefSize(48, 48);
+
+        Label label = new Label("Проверяем сохранённую сессию…");
+        label.setStyle("-fx-text-fill: #cccccc; -fx-font-size: 14px;");
+
+        VBox root = new VBox(20, spinner, label);
+        root.setAlignment(Pos.CENTER);
+        root.setStyle("-fx-background-color: #1e1e2e;");
+        root.setPrefSize(500, 420);
+
+        applyScene(root);
+    }
+
+    /**
+     * Мы показываем экран входа с предзаполненным сообщением об ошибке.
+     * Используется при автологине, когда сервер был недоступен.
+     */
+    public void showLoginWithError(String errorMessage) {
+        try {
+            FXMLLoader loader = loader("login.fxml");
+            Parent root = loader.load();
+            LoginController ctrl = loader.getController();
+            ctrl.init(this, connection);
+            ctrl.setStatusMessage(errorMessage);
+            applyScene(root);
+            connection.setListener(ctrl);
+        } catch (IOException e) {
+            throw new RuntimeException("Не удалось загрузить login.fxml", e);
+        }
+    }
+
     public void showLogin() {
         try {
             FXMLLoader loader = loader("login.fxml");

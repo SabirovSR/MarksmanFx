@@ -14,6 +14,8 @@
         <module>common</module>
         <module>server</module>
         <module>client</module>
+        <!-- Новый Spring Boot сервер, заменяющий server на production -->
+        <module>server-spring</module>
     </modules>
 
     <properties>
