@@ -6,12 +6,17 @@ import lombok.extern.slf4j.Slf4j;
 import org.example.marksmanfx.server.auth.dto.AuthResponse;
 import org.example.marksmanfx.server.auth.dto.LoginRequest;
 import org.example.marksmanfx.server.auth.dto.RegisterRequest;
+import org.example.marksmanfx.server.auth.dto.UserProfileDto;
+import org.example.marksmanfx.server.auth.entity.AppUser;
+import org.example.marksmanfx.server.auth.repository.UserRepository;
 import org.example.marksmanfx.server.auth.service.AuthService;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.AuthenticationException;
+import org.springframework.security.core.userdetails.UsernameNotFoundException;
 import org.springframework.web.bind.annotation.*;
 
+import java.security.Principal;
 import java.util.Map;
 
 /**
@@ -34,7 +39,8 @@ import java.util.Map;
 @RequiredArgsConstructor
 public class AuthController {
 
-    private final AuthService authService;
+    private final AuthService    authService;
+    private final UserRepository userRepository;
 
     /**
      * Мы регистрируем нового пользователя.
@@ -91,6 +97,35 @@ public class AuthController {
      * При неверных данных Spring Security сам выбросит AuthenticationException
      * и мы возвращаем 401 Unauthorized.
      */
+    /**
+     * Мы проверяем валидность JWT-токена и возвращаем профиль текущего пользователя.
+     *
+     * Этот эндпоинт — центральная точка автологина на клиенте:
+     *   — Клиент читает сохранённый токен из Preferences.
+     *   — Отправляет GET /api/auth/me с заголовком Authorization: Bearer <token>.
+     *   — 200 OK → токен валиден, сессия восстановлена → показываем лобби.
+     *   — 401    → JwtAuthFilter отклонил токен (истёк/неверная подпись) → показываем логин.
+     *
+     * Spring Security автоматически возвращает 401 если JWT не прошёл JwtAuthFilter,
+     * до того как запрос достигнет этого метода. Principal здесь всегда валиден.
+     *
+     * Пример запроса:
+     *   GET /api/auth/me
+     *   Authorization: Bearer eyJhbGciOiJIUzI1NiJ9...
+     *
+     * Пример ответа (200 OK):
+     *   { "id": 42, "username": "ArcherKing" }
+     */
+    @GetMapping("/me")
+    public ResponseEntity<UserProfileDto> getCurrentUser(Principal principal) {
+        AppUser user = userRepository.findByUsername(principal.getName())
+                .orElseThrow(() -> new UsernameNotFoundException(
+                        "Пользователь не найден после валидации токена: " + principal.getName()));
+
+        log.debug("GET /api/auth/me → пользователь: '{}'", user.getUsername());
+        return ResponseEntity.ok(new UserProfileDto(user.getId(), user.getUsername()));
+    }
+
     @PostMapping("/login")
     public ResponseEntity<?> login(@Valid @RequestBody LoginRequest request) {
         try {

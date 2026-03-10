@@ -29,6 +29,26 @@
             <artifactId>javafx-fxml</artifactId>
             <version>22.0.1</version>
         </dependency>
+
+        <!--
+            Jackson — парсинг JSON-ответов от REST API (логин, /api/auth/me).
+            Мы используем databind: он включает core и annotations транзитивно.
+        -->
+        <dependency>
+            <groupId>com.fasterxml.jackson.core</groupId>
+            <artifactId>jackson-databind</artifactId>
+            <version>2.17.2</version>
+        </dependency>
+
+        <!--
+            Java-WebSocket — STOMP/WebSocket клиент для подключения к Spring Boot серверу.
+            Мы используем его в StompWebSocketClient вместо сырых сокетов.
+        -->
+        <dependency>
+            <groupId>org.java-websocket</groupId>
+            <artifactId>Java-WebSocket</artifactId>
+            <version>1.5.4</version>
+        </dependency>
     </dependencies>
 
     <build>
