@@ -20,23 +20,25 @@ import java.io.IOException;
 /**
  * JWT-фильтр для HTTP REST запросов.
  *
- * Мы встраиваем его в цепочку Spring Security перед UsernamePasswordAuthenticationFilter.
+ * Мы встраиваем его перед UsernamePasswordAuthenticationFilter.
  *
- * Архитектура обработки ошибок:
- *   Весь метод doFilterInternal обёрнут в ОДИН внешний try-catch(Exception).
- *   Это гарантирует: ни одно исключение — ни JWT, ни базы данных, ни сети —
- *   никогда не вылетит за пределы фильтра в FilterChainProxy.
+ * Архитектура защиты от исключений:
  *
- *   Без этого:
- *     JwtException → не перехвачено → FilterChainProxy → огромный stack trace
- *     500 Internal Server Error вместо 401 Unauthorized
+ *   Запрос без Bearer-токена
+ *     → filterChain.doFilter() вызывается ВОВНЕ try-catch
+ *     → реальные ошибки downstream (WebSocket upgrade, 404 и т.д.) не маскируются под 401
  *
- *   С этим:
- *     Любое исключение → catch → JSON 401 + return → trace только в лог.error
+ *   Запрос С Bearer-токеном
+ *     → JWT-валидация внутри try-catch(Exception)
+ *     → при ошибке: записываем 401 JSON через вложенный try — он поглощает IOException от getWriter()
+ *     → filterChain.doFilter() вызывается ВОВНЕ try-catch (реальные ошибки не маскируются)
  *
- * Контракт:
- *   Нет токена  → filterChain.doFilter() (Spring Security решает)
- *   Есть токен  → внутри защищённого try → успех: chain / ошибка: 401 JSON
+ * Почему предыдущая версия давала stack trace в FilterChainProxy?
+ *   1. filterChain.doFilter() для запросов без токена был ВНУТРИ try.
+ *      Любое исключение из downstream (disconnect, timeout) маскировалось под 401.
+ *   2. response.getWriter().write() в блоке catch бросал IOException
+ *      (клиент отключился ДО записи ответа). Эта вторичная IOException
+ *      не была поймана — она вылетала из catch наружу в FilterChainProxy.
  */
 @Slf4j
 @Component
@@ -53,108 +55,93 @@ public class JwtAuthFilter extends OncePerRequestFilter {
             @NonNull FilterChain         filterChain
     ) throws ServletException, IOException {
 
-        // Мы оборачиваем АБСОЛЮТНО ВСЁ в один try-catch.
-        // Это единственный надёжный способ гарантировать, что фильтр
-        // никогда не выбросит необработанное исключение в FilterChainProxy.
+        final String authHeader = request.getHeader("Authorization");
+
+        // Мы проверяем наличие Bearer-токена ДО входа в try-catch.
+        // Запросы без токена: /api/auth/login, /actuator/health, OPTIONS и т.д.
+        // Их ошибки должны распространяться нормально, не маскируясь под 401.
+        if (authHeader == null || !authHeader.startsWith("Bearer ")) {
+            filterChain.doFilter(request, response);
+            return;
+        }
+
+        // Мы извлекаем токен (убираем "Bearer ", 7 символов)
+        final String token = authHeader.substring(7);
+
+        // Мы оборачиваем в try ТОЛЬКО логику валидации JWT.
+        // filterChain.doFilter() остаётся снаружи — реальные ошибки не глотаются.
         try {
-
-            // Мы читаем заголовок Authorization
-            final String authHeader = request.getHeader("Authorization");
-
-            // Мы пропускаем запросы без Bearer-токена — они идут на открытые эндпоинты
-            // (/api/auth/login, /api/auth/register, /actuator/health и т.д.).
-            // Spring Security сам вынесет вердикт на основе правил permitAll/authenticated.
-            if (authHeader == null || !authHeader.startsWith("Bearer ")) {
-                filterChain.doFilter(request, response);
-                return;
-            }
-
-            // Мы извлекаем токен, убирая префикс "Bearer " (ровно 7 символов)
-            final String token = authHeader.substring(7);
-
-            // Мы парсим username из JWT payload (claim "sub")
             final String username = jwtService.extractUsername(token);
 
-            // Мы устанавливаем аутентификацию только если:
-            //   а) username успешно извлечён
-            //   б) SecurityContext ещё не содержит аутентификацию этого запроса
             if (username != null && SecurityContextHolder.getContext().getAuthentication() == null) {
-
-                // Мы загружаем актуальные данные пользователя из PostgreSQL
                 final UserDetails userDetails = userDetailsService.loadUserByUsername(username);
 
-                // Мы проверяем подпись, срок действия и соответствие username
                 if (jwtService.isTokenValid(token, userDetails)) {
                     final UsernamePasswordAuthenticationToken auth =
                             new UsernamePasswordAuthenticationToken(
                                     userDetails,
-                                    null,                         // credentials не нужны — токен уже проверен
+                                    null,
                                     userDetails.getAuthorities()
                             );
                     auth.setDetails(new WebAuthenticationDetailsSource().buildDetails(request));
-
-                    // Мы помещаем аутентификацию в SecurityContext — запрос считается авторизованным
                     SecurityContextHolder.getContext().setAuthentication(auth);
                     log.debug("[JWT] '{}' аутентифицирован → {}", username, request.getRequestURI());
                 }
             }
 
-            // Мы передаём запрос дальше по цепочке фильтров.
-            // Этот вызов тоже внутри try — любое исключение из downstream поймается ниже.
-            filterChain.doFilter(request, response);
-
         } catch (Exception e) {
-            // Мы перехватываем ЛЮБОЕ исключение, которое могло возникнуть:
-            //   — ExpiredJwtException, SignatureException, MalformedJwtException (JJWT)
-            //   — UsernameNotFoundException (Spring Security)
-            //   — любое другое RuntimeException из jwtService или userDetailsService
-
-            // Мы логируем только сообщение без stack trace — это принципиально важно.
-            // Передача e четвёртым аргументом (log.error(..., e)) вывела бы полный trace.
-            // Нам нужен краткий лог, а не «стена текста» в консоли.
+            // Мы поймали ошибку JWT (истёкший, неверная подпись, сломанный формат и т.д.)
+            // Логируем ТОЛЬКО сообщение — без передачи e четвёртым аргументом,
+            // иначе SLF4J напечатает полный stack trace.
             log.error("[JWT] Ошибка аутентификации [{}]: {}", request.getRequestURI(), e.getMessage());
 
-            // Мы очищаем SecurityContext — потоки из пула переиспользуются,
-            // и без явной очистки контекст предыдущего запроса мог бы «протечь»
             SecurityContextHolder.clearContext();
 
-            // Мы отвечаем клиенту только если ответ ещё не зафиксирован.
-            // Если filterChain.doFilter() уже частично записал ответ — пропускаем,
-            // иначе получим IllegalStateException: "response already committed".
-            if (!response.isCommitted()) {
-                // Мы используем setStatus() + getWriter() вместо sendError().
-                // sendError() может перенаправить на стандартную Spring Error-страницу,
-                // которая вернёт HTML вместо JSON — фронтенд не сможет его распарсить.
-                response.setStatus(HttpServletResponse.SC_UNAUTHORIZED);
-                response.setContentType("application/json;charset=UTF-8");
-                response.getWriter().write(
-                        "{\"error\":\"Unauthorized\",\"message\":\""
-                        + escapeJsonString(e.getMessage())
-                        + "\"}"
-                );
+            // Мы пишем ответ во ВЛОЖЕННОМ try-catch.
+            // Если клиент уже отключился, getWriter().write() бросит IOException.
+            // Без вложенного try эта IOException улетала бы в FilterChainProxy
+            // и давала огромный stack trace — именно это и происходило.
+            try {
+                if (!response.isCommitted()) {
+                    response.setStatus(HttpServletResponse.SC_UNAUTHORIZED);
+                    response.setContentType("application/json;charset=UTF-8");
+                    response.getWriter().write(
+                            "{\"error\":\"Unauthorized\",\"message\":\""
+                            + escapeJsonString(e.getMessage())
+                            + "\"}"
+                    );
+                    response.getWriter().flush();
+                }
+            } catch (Exception writeEx) {
+                // Мы не смогли записать ответ (клиент отключился, соединение сброшено).
+                // Логируем кратко на уровне DEBUG — это штатная ситуация, не ошибка.
+                log.debug("[JWT] Не удалось записать ответ клиенту (соединение закрыто?): {}",
+                        writeEx.getMessage());
             }
 
-            // Мы явно возвращаемся — цепочка фильтров прервана, ответ уже отправлен
+            // Мы прерываем цепочку фильтров — ответ уже записан (или попытка была)
             return;
         }
+
+        // Мы вызываем filterChain.doFilter() ВОВНЕ try-catch.
+        // Исключения от downstream-фильтров и контроллеров не поглощаются фильтром JWT —
+        // они всплывают и обрабатываются штатными механизмами Spring (ExceptionTranslationFilter,
+        // GlobalExceptionHandler и т.д.) с правильным HTTP-статусом.
+        filterChain.doFilter(request, response);
     }
 
     /**
-     * Мы экранируем специальные символы в строке перед вставкой в JSON-литерал.
-     *
-     * Без этого сообщение вида: Пользователь "admin" не найден
-     * сломало бы структуру JSON: {..., "message": "Пользователь "admin" не найден"}
-     *
-     * Мы обрабатываем только символы, опасные внутри JSON-строки.
-     * Для полноценной сериализации используйте ObjectMapper в продакшене.
+     * Мы экранируем специальные символы перед вставкой строки в JSON-литерал.
+     * Без экранирования сообщение вида: User "admin" not found
+     * сломало бы структуру: {..., "message": "User "admin" not found"}.
      */
     private static String escapeJsonString(String value) {
         if (value == null) return "Unknown error";
         return value
-                .replace("\\", "\\\\")   // обратный слэш первым
-                .replace("\"", "\\\"")   // двойная кавычка
-                .replace("\n", "\\n")    // перевод строки
-                .replace("\r", "\\r")    // возврат каретки
-                .replace("\t", "\\t");   // табуляция
+                .replace("\\", "\\\\")
+                .replace("\"", "\\\"")
+                .replace("\n", "\\n")
+                .replace("\r", "\\r")
+                .replace("\t", "\\t");
     }
 }
