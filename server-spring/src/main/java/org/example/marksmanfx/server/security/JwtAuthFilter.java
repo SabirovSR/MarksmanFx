@@ -50,6 +50,14 @@ public class JwtAuthFilter extends OncePerRequestFilter {
      */
     private final UserDetailsService userDetailsService;
 
+    /**
+     * Контракт метода: мы НИКОГДА не вызываем response.sendError() и не бросаем исключения
+     * наружу. Единственная обязанность фильтра — заполнить SecurityContext, если токен валиден.
+     * Решение о блокировке (403/401) принимает Spring Security ПОСЛЕ всей цепочки фильтров,
+     * опираясь на правила из SecurityFilterChain (permitAll / authenticated и т.д.).
+     *
+     * Это ключевой принцип: фильтр аутентифицирует, а не авторизует.
+     */
     @Override
     protected void doFilterInternal(
             @NonNull HttpServletRequest  request,
@@ -57,48 +65,61 @@ public class JwtAuthFilter extends OncePerRequestFilter {
             @NonNull FilterChain         filterChain
     ) throws ServletException, IOException {
 
-        // Мы читаем заголовок авторизации из входящего HTTP-запроса
-        String authHeader = request.getHeader("Authorization");
+        // Мы читаем заголовок Authorization из входящего HTTP-запроса
+        final String authHeader = request.getHeader("Authorization");
 
-        // Мы пропускаем запросы без Bearer-токена (публичные эндпоинты)
+        // Если токена нет — передаём запрос дальше по цепочке с пустым SecurityContext.
+        // Spring Security сам решит: permitAll() → 200, authenticated() → 401.
+        // Именно так работает /actuator/health и /api/auth/login без токена.
         if (authHeader == null || !authHeader.startsWith("Bearer ")) {
             filterChain.doFilter(request, response);
             return;
         }
 
-        // Мы извлекаем токен, убирая префикс "Bearer "
-        String token = authHeader.substring(7);
+        // Мы извлекаем значение токена, убирая префикс "Bearer " (7 символов)
+        final String token = authHeader.substring(7);
 
         try {
-            String username = jwtService.extractUsername(token);
+            final String username = jwtService.extractUsername(token);
 
-            // Мы устанавливаем контекст только если пользователь ещё не аутентифицирован
+            // Мы устанавливаем аутентификацию только если:
+            //   а) токен содержит username
+            //   б) в текущем SecurityContext ещё нет аутентификации (избегаем перезаписи)
             if (username != null && SecurityContextHolder.getContext().getAuthentication() == null) {
 
-                // Мы загружаем актуальные данные пользователя из БД
-                UserDetails userDetails = userDetailsService.loadUserByUsername(username);
+                // Мы загружаем актуальные данные пользователя из БД для проверки токена
+                final UserDetails userDetails = userDetailsService.loadUserByUsername(username);
 
-                // Мы проверяем валидность токена относительно данного пользователя
                 if (jwtService.isTokenValid(token, userDetails)) {
-                    UsernamePasswordAuthenticationToken authentication =
+                    // Мы создаём объект аутентификации и помещаем его в SecurityContext —
+                    // после этого Spring Security будет считать запрос аутентифицированным
+                    final UsernamePasswordAuthenticationToken authentication =
                             new UsernamePasswordAuthenticationToken(
                                     userDetails,
-                                    null,
+                                    null,                          // credentials не нужны после проверки токена
                                     userDetails.getAuthorities()
                             );
                     authentication.setDetails(
                             new WebAuthenticationDetailsSource().buildDetails(request)
                     );
-                    // Мы помещаем объект аутентификации в контекст безопасности текущего запроса
                     SecurityContextHolder.getContext().setAuthentication(authentication);
                     log.debug("JWT аутентификация успешна для пользователя '{}'", username);
                 }
+                // Если токен невалиден — мы ничего не устанавливаем в SecurityContext.
+                // Запрос дойдёт до Spring Security с пустым контекстом и получит 401.
             }
+
         } catch (Exception e) {
-            // Мы логируем ошибку и продолжаем цепочку — Spring Security сам отклонит запрос
-            log.warn("Ошибка обработки JWT токена: {}", e.getMessage());
+            // Мы поймали исключение при обработке токена (истёк, неверная подпись и т.д.).
+            // Мы очищаем SecurityContext, чтобы гарантировать отсутствие частично
+            // заполненного состояния — потоки в пуле переиспользуются, и без явной
+            // очистки контекст предыдущего запроса мог бы "протечь" в текущий.
+            SecurityContextHolder.clearContext();
+            log.warn("Ошибка обработки JWT токена [{}]: {}", request.getRequestURI(), e.getMessage());
         }
 
+        // Мы всегда передаём запрос дальше — фильтр никогда не прерывает цепочку сам.
+        // Правила permitAll() / authenticated() в SecurityFilterChain выносят финальный вердикт.
         filterChain.doFilter(request, response);
     }
 }
