@@ -13,7 +13,12 @@ import org.springframework.security.config.annotation.web.configurers.AbstractHt
 import org.springframework.security.config.http.SessionCreationPolicy;
 import org.springframework.security.web.SecurityFilterChain;
 import org.springframework.security.web.authentication.UsernamePasswordAuthenticationFilter;
+import org.springframework.web.cors.CorsConfiguration;
+import org.springframework.web.cors.CorsConfigurationSource;
+import org.springframework.web.cors.UrlBasedCorsConfigurationSource;
 import org.springframework.web.socket.config.annotation.WebSocketMessageBrokerConfigurer;
+
+import java.util.List;
 
 /**
  * Конфигурация Spring Security — только цепочка фильтров HTTP.
@@ -75,8 +80,11 @@ public class SecurityConfig {
         http
             // Мы отключаем CSRF — не нужен для stateless JWT API
             .csrf(AbstractHttpConfigurer::disable)
-            // Мы разрешаем CORS — фронтенд находится на другом origin в dev-режиме
-            .cors(cors -> {})
+            // Мы явно передаём наш CorsConfigurationSource, чтобы Spring Security
+            // знал, какие origin разрешены. Пустой customizer .cors(cors -> {})
+            // заставляет Spring искать бин CorsConfigurationSource в контексте —
+            // если его нет, OPTIONS-запросы блокируются с 403.
+            .cors(cors -> cors.configurationSource(corsConfigurationSource()))
             // Мы переводим Spring Security в stateless-режим: никаких HTTP-сессий
             .sessionManagement(session ->
                     session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
@@ -97,6 +105,66 @@ public class SecurityConfig {
             .addFilterBefore(jwtAuthFilter, UsernamePasswordAuthenticationFilter.class);
 
         return http.build();
+    }
+
+    // ──────────────────────────────────────────────────────────────────────
+    //  CORS — политика кросс-доменных запросов
+    // ──────────────────────────────────────────────────────────────────────
+
+    /**
+     * Мы описываем политику CORS для всего API.
+     *
+     * Почему preflight OPTIONS получал 403 без этого бина?
+     *   Браузер перед любым «небезопасным» запросом (POST, PUT, DELETE,
+     *   запрос с заголовком Authorization) сначала отправляет OPTIONS-запрос
+     *   (preflight) на тот же URL. Spring Security перехватывает его первым.
+     *   Без CorsConfigurationSource Spring не знает, что этот origin разрешён,
+     *   и блокирует запрос с 403 — до того как сработает permitAll().
+     *
+     * Почему setAllowedOriginPatterns, а не setAllowedOrigins?
+     *   При setAllowCredentials(true) нельзя использовать setAllowedOrigins("*"):
+     *   RFC запрещает браузеру отправлять credentials на wildcard origin.
+     *   setAllowedOriginPatterns("*") — это Spring-паттерн, а не HTTP-wildcard,
+     *   поэтому он совместим с allowCredentials и не нарушает спецификацию.
+     */
+    @Bean
+    public CorsConfigurationSource corsConfigurationSource() {
+        CorsConfiguration config = new CorsConfiguration();
+
+        // Мы разрешаем запросы с конкретных origin нашего фронтенда.
+        // В dev-среде используем паттерн "*", чтобы не перечислять все порты вручную.
+        // В продакшене замените на явный список: List.of("https://game.example.com")
+        config.setAllowedOriginPatterns(List.of(
+                "http://localhost",      // фронтенд за Nginx (порт 80)
+                "http://localhost:82",   // фронтенд на нестандартном порту
+                "http://localhost:5173", // Vite dev server
+                "http://localhost:8080"  // прямой доступ к бэкенду в dev
+        ));
+
+        // Мы явно перечисляем методы — OPTIONS здесь критически важен:
+        // он используется браузером для preflight-проверки перед POST/PUT/DELETE
+        config.setAllowedMethods(List.of("GET", "POST", "PUT", "DELETE", "OPTIONS", "PATCH"));
+
+        // Мы разрешаем все заголовки, включая Authorization (Bearer JWT),
+        // Content-Type и любые кастомные заголовки, которые может добавить фронтенд
+        config.setAllowedHeaders(List.of("*"));
+
+        // Мы разрешаем браузеру читать заголовок Authorization из ответа сервера
+        // (нужно, если сервер будет возвращать обновлённый токен в заголовке)
+        config.setExposedHeaders(List.of("Authorization"));
+
+        // Мы разрешаем передачу credentials (куки, заголовки авторизации)
+        // в кросс-доменных запросах — нужно для JWT в заголовке Authorization
+        config.setAllowCredentials(true);
+
+        // Мы кэшируем результат preflight-запроса в браузере на 30 минут.
+        // Это избавляет от лишних OPTIONS-запросов при каждом API-вызове.
+        config.setMaxAge(1800L);
+
+        // Мы регистрируем эту конфигурацию для всех эндпоинтов сервера
+        UrlBasedCorsConfigurationSource source = new UrlBasedCorsConfigurationSource();
+        source.registerCorsConfiguration("/**", config);
+        return source;
     }
 
     // ──────────────────────────────────────────────────────────────────────
