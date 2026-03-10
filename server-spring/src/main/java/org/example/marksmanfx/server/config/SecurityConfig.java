@@ -84,6 +84,11 @@ public class SecurityConfig {
             .authorizeHttpRequests(auth -> auth
                     .requestMatchers("/api/auth/**").permitAll()
                     .requestMatchers("/ws/**").permitAll()
+                    // Мы открываем Actuator для Docker healthcheck без JWT-токена.
+                    // /actuator/health используется в docker-compose depends_on.
+                    // Остальные эндпоинты Actuator (/info, /metrics и т.д.) тоже
+                    // открываем — в продакшене их стоит закрыть отдельным firewall-правилом.
+                    .requestMatchers("/actuator/**").permitAll()
                     .anyRequest().authenticated()
             )
             // Мы регистрируем наш AuthenticationProvider из ApplicationConfig
