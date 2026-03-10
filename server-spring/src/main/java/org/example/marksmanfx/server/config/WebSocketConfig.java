@@ -27,19 +27,42 @@ public class WebSocketConfig implements WebSocketMessageBrokerConfigurer {
      * В продакшене /topic и /queue можно заменить на внешний RabbitMQ/ActiveMQ,
      * изменив строку на enableStompBrokerRelay() — переход займёт 5 минут.
      */
+    /**
+     * Мы настраиваем маршрутизацию STOMP-сообщений.
+     *
+     * Три пространства имён:
+     *   /topic  — широковещательные топики (все подписчики темы получат сообщение)
+     *   /queue  — персональные очереди (ОБЯЗАТЕЛЬНО для работы @SendToUser и /user/queue/*)
+     *   /app    — обработчики @MessageMapping на сервере (не идёт в брокер напрямую)
+     *   /user   — ТОЛЬКО как userDestinationPrefix: клиент пишет /user/queue/X,
+     *             Spring переписывает в /queue/X-user{sessionId} для доставки
+     *
+     * КРИТИЧНО: почему /queue, а не /user в enableSimpleBroker?
+     * ─────────────────────────────────────────────────────────
+     * UserDestinationMessageHandler перехватывает клиентские подписки на /user/**
+     * и ПЕРЕПИСЫВАЕТ их во внутренние пути вида /queue/room-joined-user{sessionId}.
+     * SimpleBrokerMessageHandler.checkDestinationPrefix() проверяет, начинается ли
+     * назначение с одного из сконфигурированных префиксов.
+     * С enableSimpleBroker("/topic", "/user") путь /queue/room-joined-user123 НЕ совпадает
+     * ни с /topic, ни с /user → SimpleBroker молча дропает сообщение.
+     * Именно поэтому ROOM_JOINED никогда не доходил до клиента и навигации не было.
+     * Правильная конфигурация: /topic (broadcast) + /queue (user-specific).
+     */
     @Override
     public void configureMessageBroker(MessageBrokerRegistry config) {
-        // /topic — широковещательные каналы: все подписчики темы получат сообщение.
-        // Используем для рассылки состояния комнаты, координат выстрелов и т.д.
-        // /user  — персональные очереди: только конкретный пользователь получит сообщение.
-        // Используем для ошибок (например, RoomFullEvent).
-        config.enableSimpleBroker("/topic", "/user");
+        // Мы регистрируем /topic и /queue как префиксы для Simple Broker.
+        // /topic — для широковещательных рассылок (GameStateMessage, LobbyState и т.д.)
+        // /queue — для персональных очередей (ROOM_JOINED, ошибки зрителей и т.д.)
+        //          UserDestinationMessageHandler переписывает /user/queue/X → /queue/X-user{id}
+        config.enableSimpleBroker("/topic", "/queue");
 
-        // Префикс для методов @MessageMapping на сервере.
-        // Клиент шлёт сообщение на /app/game/ABC123/shot → попадает в @MessageMapping("/game/{roomId}/shot").
+        // Мы задаём префикс для @MessageMapping: клиент шлёт на /app/lobby/create,
+        // Spring ищет @MessageMapping("/lobby/create")
         config.setApplicationDestinationPrefixes("/app");
 
-        // Префикс для персональных назначений (Spring автоматически добавляет sessionId).
+        // Мы задаём префикс для пользовательских назначений.
+        // Клиент подписывается на /user/queue/room-joined →
+        // Spring переписывает в /queue/room-joined-user{sessionId} для брокера
         config.setUserDestinationPrefix("/user");
     }
 
